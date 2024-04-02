@@ -4,7 +4,7 @@ fn main() {
     for line in std::io::stdin().lines() {
         let json: serde_json::Value = serde_json::from_str(&line.unwrap()).unwrap();
 
-        match &json["action"].as_str() {
+        match json["action"].as_str() {
             Some("input") => {
                 // pty.input();
             }
