@@ -11,11 +11,13 @@ use std::io;
 use std::sync::mpsc;
 use std::thread;
 
+#[derive(Debug)]
 enum Message {
     Output(String),
     Command(Command),
 }
 
+#[derive(Debug)]
 enum Command {
     Input(String),
     GetView,
