@@ -1,6 +1,10 @@
-use std::{fs::File, io::Write, os::fd::{AsRawFd, FromRawFd, RawFd}};
 use nix::pty;
 use nix::unistd::{self, ForkResult};
+use std::{
+    fs::File,
+    io::Write,
+    os::fd::{AsRawFd, FromRawFd, RawFd},
+};
 use nix::libc;
 use std::ffi::{CString, NulError};
 use std::io;
@@ -73,7 +77,7 @@ fn handle_parent(master_fd: RawFd, child: unistd::Pid) {
         match message {
             Message::Command(Command::Input(i)) => {
                 input.write_all(i.as_bytes()).unwrap();
-            },
+            }
 
             Message::Command(Command::GetView) => {
                 let text = vt
@@ -87,16 +91,22 @@ fn handle_parent(master_fd: RawFd, child: unistd::Pid) {
                 println!("{}", serde_json::to_string(&resp).unwrap());
             }
 
-            _ => (),
+            Message::Output(o) => {
+                vt.feed_str(&o);
+            }
         }
     }
 }
 
-fn handle_child<S>(command: &[S]) -> io::Result<()> where S: AsRef<str> {
+fn handle_child<S>(command: &[S]) -> io::Result<()>
+where
+    S: AsRef<str>,
+{
     let command = command
         .iter()
         .map(|s| CString::new(s.as_ref()))
-        .collect::<Result<Vec<CString>, NulError>>().unwrap();
+        .collect::<Result<Vec<CString>, NulError>>()
+        .unwrap();
 
     unistd::execvp(&command[0], &command).unwrap();
     unsafe { libc::_exit(1) }
