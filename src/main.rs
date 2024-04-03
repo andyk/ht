@@ -38,7 +38,7 @@ fn main() {
         ForkResult::Parent { child } => handle_parent(result.master.as_raw_fd(), child),
 
         ForkResult::Child => {
-            handle_child(&["/bin/bash"]).unwrap();
+            handle_child(&["/bin/sh"]).unwrap();
             unreachable!();
         }
     }
