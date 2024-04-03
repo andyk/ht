@@ -1,16 +1,17 @@
+use mio::unix::SourceFd;
+use nix::libc;
 use nix::pty;
-use nix::sys::signal::{self, Signal, SigHandler};
+use nix::sys::signal::{self, SigHandler, Signal};
 use nix::unistd::{self, ForkResult};
+use std::ffi::{CString, NulError};
+use std::io::{self, ErrorKind, Read};
+use std::sync::mpsc;
+use std::thread;
 use std::{
     fs::File,
     io::Write,
     os::fd::{AsRawFd, FromRawFd, RawFd},
 };
-use nix::libc;
-use std::ffi::{CString, NulError};
-use std::io;
-use std::sync::mpsc;
-use std::thread;
 
 #[derive(Debug)]
 enum Message {
@@ -48,8 +49,8 @@ fn handle_parent(master_fd: RawFd, child: unistd::Pid) {
     let (sender, receiver) = mpsc::channel::<Message>();
     let (rx, tx) = nix::unistd::pipe().unwrap();
     let mut input = unsafe { File::from_raw_fd(tx.as_raw_fd()) };
-
     let s1 = sender.clone();
+
     let h1 = thread::spawn(move || {
         for line in std::io::stdin().lines() {
             let json: serde_json::Value = serde_json::from_str(&line.unwrap()).unwrap();
@@ -67,11 +68,131 @@ fn handle_parent(master_fd: RawFd, child: unistd::Pid) {
                 _ => (),
             }
         }
+
+        println!("input closed!");
     });
 
     let h2 = thread::spawn(move || {
-        // TODO select / copy
-        sender.send(Message::Output("".to_string())).unwrap();
+        const MASTER: mio::Token = mio::Token(0);
+        const INPUT: mio::Token = mio::Token(1);
+        const BUF_SIZE: usize = 128 * 1024;
+
+        let mut poll = mio::Poll::new().unwrap();
+        let mut events = mio::Events::with_capacity(128);
+        let mut master_file = unsafe { File::from_raw_fd(master_fd) };
+        let mut master_source = SourceFd(&master_fd);
+        let input_fd = rx.as_raw_fd();
+        let mut input_file = unsafe { File::from_raw_fd(input_fd) };
+        let mut input_source = SourceFd(&input_fd);
+        let mut buf = [0u8; BUF_SIZE];
+        let mut input: Vec<u8> = Vec::with_capacity(BUF_SIZE);
+        set_non_blocking(&input_fd).unwrap();
+        set_non_blocking(&master_fd).unwrap();
+
+        poll.registry()
+            .register(&mut master_source, MASTER, mio::Interest::READABLE)
+            .unwrap();
+
+        poll.registry()
+            .register(&mut input_source, INPUT, mio::Interest::READABLE)
+            .unwrap();
+
+        loop {
+            if let Err(e) = poll.poll(&mut events, None) {
+                if e.kind() == io::ErrorKind::Interrupted {
+                    continue;
+                } else {
+                    panic!("{}", e);
+                }
+            }
+
+            for event in events.iter() {
+                match event.token() {
+                    MASTER => {
+                        if event.is_readable() {
+                            println!("master read");
+
+                            while let Some(n) = read_non_blocking(&mut master_file, &mut buf).unwrap() {
+                                if n > 0 {
+                                    sender
+                                        .send(Message::Output(
+                                            String::from_utf8_lossy(&buf[0..n]).to_string(),
+                                        ))
+                                        .unwrap();
+                                } else {
+                                    println!("master read closed");
+                                    return;
+                                }
+                            }
+                        }
+
+                        if event.is_writable() {
+                            println!("master write");
+
+                            let mut buf: &[u8] = input.as_ref();
+
+                            while let Some(n) = write_non_blocking(&mut master_file, buf).unwrap() {
+                                buf = &buf[n..];
+
+                                if buf.is_empty() {
+                                    break;
+                                }
+                            }
+
+                            let left = buf.len();
+
+                            if left == 0 {
+                                input.clear();
+
+                                poll.registry()
+                                    .reregister(&mut master_source, MASTER, mio::Interest::READABLE)
+                                    .unwrap();
+                            } else {
+                                input.drain(..input.len() - left);
+                            }
+                        }
+
+                        // needed?
+                        // if event.is_read_closed() {
+                        //     poll.registry().deregister(&mut master_source).unwrap();
+                        //     return;
+                        // }
+                    }
+
+                    INPUT => {
+                        if event.is_readable() {
+                            println!("input read");
+
+                            while let Some(n) = read_non_blocking(&mut input_file, &mut buf).unwrap() {
+                                println!("read some input! {n}");
+
+                                if n > 0 {
+                                    input.extend_from_slice(&buf[0..n]);
+
+                                    poll.registry()
+                                        .reregister(
+                                            &mut master_source,
+                                            MASTER,
+                                            mio::Interest::READABLE | mio::Interest::WRITABLE,
+                                        )
+                                        .unwrap();
+                                } else {
+                                    return;
+                                }
+                            }
+                        }
+
+                        // needed?
+                        // if event.is_read_closed() {
+                        //     poll.registry().deregister(&mut input_source).unwrap();
+                        //     return;
+                        // }
+                    }
+
+                    _ => (),
+                }
+            }
+        }
     });
 
     let mut vt = avt::Vt::builder().size(80, 24).build();
