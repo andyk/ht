@@ -1,4 +1,5 @@
 use nix::pty;
+use nix::sys::signal::{self, Signal, SigHandler};
 use nix::unistd::{self, ForkResult};
 use std::{
     fs::File,
@@ -110,6 +111,7 @@ where
         .collect::<Result<Vec<CString>, NulError>>()
         .unwrap();
 
+    unsafe { signal::signal(Signal::SIGPIPE, SigHandler::SigDfl) }.unwrap();
     unistd::execvp(&command[0], &command).unwrap();
     unsafe { libc::_exit(1) }
 }
