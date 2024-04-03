@@ -111,3 +111,49 @@ where
     unistd::execvp(&command[0], &command).unwrap();
     unsafe { libc::_exit(1) }
 }
+
+pub fn set_non_blocking(fd: &RawFd) -> Result<(), io::Error> {
+    use nix::fcntl::{fcntl, FcntlArg::*, OFlag};
+
+    let flags = fcntl(*fd, F_GETFL)?;
+    let mut oflags = OFlag::from_bits_truncate(flags);
+    oflags |= OFlag::O_NONBLOCK;
+    fcntl(*fd, F_SETFL(oflags))?;
+
+    Ok(())
+}
+
+fn read_non_blocking<R: Read + ?Sized>(
+    source: &mut R,
+    buf: &mut [u8],
+) -> io::Result<Option<usize>> {
+    match source.read(buf) {
+        Ok(n) => Ok(Some(n)),
+
+        Err(e) => {
+            if e.kind() == ErrorKind::WouldBlock {
+                Ok(None)
+            } else if e.raw_os_error().is_some_and(|code| code == 5) {
+                Ok(Some(0))
+            } else {
+                return Err(e);
+            }
+        }
+    }
+}
+
+fn write_non_blocking<W: Write + ?Sized>(sink: &mut W, buf: &[u8]) -> io::Result<Option<usize>> {
+    match sink.write(buf) {
+        Ok(n) => Ok(Some(n)),
+
+        Err(e) => {
+            if e.kind() == ErrorKind::WouldBlock {
+                Ok(None)
+            } else if e.raw_os_error().is_some_and(|code| code == 5) {
+                Ok(Some(0))
+            } else {
+                return Err(e);
+            }
+        }
+    }
+}
