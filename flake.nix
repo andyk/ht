@@ -14,6 +14,7 @@
           devShells.default = pkgs.mkShell {
             nativeBuildInputs = with pkgs; [
               rustup
+	      bashInteractive
             ] ++ (lib.optionals stdenv.isDarwin [
 	      libiconv
 	      darwin.apple_sdk.frameworks.Foundation
