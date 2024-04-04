@@ -3,6 +3,7 @@ use nix::libc;
 use nix::pty;
 use nix::sys::signal::{self, SigHandler, Signal};
 use nix::unistd::{self, ForkResult};
+use std::env;
 use std::ffi::{CString, NulError};
 use std::io::{self, ErrorKind, Read};
 use std::sync::mpsc;
@@ -232,6 +233,7 @@ where
         .collect::<Result<Vec<CString>, NulError>>()
         .unwrap();
 
+    env::set_var("TERM", "xterm-256color");
     unsafe { signal::signal(Signal::SIGPIPE, SigHandler::SigDfl) }.unwrap();
     unistd::execvp(&command[0], &command).unwrap();
     unsafe { libc::_exit(1) }
