@@ -92,7 +92,9 @@ fn read_stdin(sender: mpsc::Sender<Message>) {
                 sender.send(Message::Command(Command::GetView)).unwrap();
             }
 
-            _ => (),
+            other => {
+                eprintln!("invalid action: {other:?}");
+            }
         }
     }
 
