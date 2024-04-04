@@ -51,12 +51,15 @@ fn main() {
 fn handle_parent(master_fd: RawFd, child: unistd::Pid) {
     let (sender, receiver) = mpsc::channel::<Message>();
     let (input_rx, input_tx) = nix::unistd::pipe().unwrap();
-    let sender_ = sender.clone();
-    thread::spawn(move || read_stdin(sender_));
-    let sender_ = sender.clone();
-    thread::spawn(move || handle_master(master_fd, input_rx, sender_));
     let input = unsafe { File::from_raw_fd(input_tx.as_raw_fd()) };
-    process_messages(receiver, input);
+    let sender_1 = sender.clone();
+    let sender_2 = sender.clone();
+
+    thread::scope(|s| {
+        s.spawn(move || read_stdin(sender_1));
+        s.spawn(move || handle_master(master_fd, input_rx, sender_2));
+        process_messages(receiver, input);
+    });
 }
 
 fn handle_child<S>(command: &[S]) -> io::Result<()>
