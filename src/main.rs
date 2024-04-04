@@ -1,3 +1,4 @@
+mod nbio;
 use mio::unix::SourceFd;
 use nix::libc;
 use nix::pty;
@@ -5,7 +6,7 @@ use nix::sys::signal::{self, SigHandler, Signal};
 use nix::unistd::{self, ForkResult};
 use std::env;
 use std::ffi::{CString, NulError};
-use std::io::{self, ErrorKind, Read};
+use std::io;
 use std::sync::mpsc;
 use std::thread;
 use std::{
@@ -87,8 +88,8 @@ fn handle_parent(master_fd: RawFd, child: unistd::Pid) {
         let mut input_source = SourceFd(&input_fd);
         let mut buf = [0u8; BUF_SIZE];
         let mut input: Vec<u8> = Vec::with_capacity(BUF_SIZE);
-        set_non_blocking(&input_fd).unwrap();
-        set_non_blocking(&master_fd).unwrap();
+        nbio::set_non_blocking(&input_fd).unwrap();
+        nbio::set_non_blocking(&master_fd).unwrap();
 
         poll.registry()
             .register(&mut master_source, MASTER, mio::Interest::READABLE)
@@ -113,7 +114,7 @@ fn handle_parent(master_fd: RawFd, child: unistd::Pid) {
                         if event.is_readable() {
                             println!("master read");
 
-                            while let Some(n) = read_non_blocking(&mut master_file, &mut buf).unwrap() {
+                            while let Some(n) = nbio::read(&mut master_file, &mut buf).unwrap() {
                                 if n > 0 {
                                     sender
                                         .send(Message::Output(
@@ -132,7 +133,7 @@ fn handle_parent(master_fd: RawFd, child: unistd::Pid) {
 
                             let mut buf: &[u8] = input.as_ref();
 
-                            while let Some(n) = write_non_blocking(&mut master_file, buf).unwrap() {
+                            while let Some(n) = nbio::write(&mut master_file, buf).unwrap() {
                                 buf = &buf[n..];
 
                                 if buf.is_empty() {
@@ -164,7 +165,7 @@ fn handle_parent(master_fd: RawFd, child: unistd::Pid) {
                         if event.is_readable() {
                             println!("input read");
 
-                            while let Some(n) = read_non_blocking(&mut input_file, &mut buf).unwrap() {
+                            while let Some(n) = nbio::read(&mut input_file, &mut buf).unwrap() {
                                 println!("read some input! {n}");
 
                                 if n > 0 {
@@ -237,50 +238,4 @@ where
     unsafe { signal::signal(Signal::SIGPIPE, SigHandler::SigDfl) }.unwrap();
     unistd::execvp(&command[0], &command).unwrap();
     unsafe { libc::_exit(1) }
-}
-
-pub fn set_non_blocking(fd: &RawFd) -> Result<(), io::Error> {
-    use nix::fcntl::{fcntl, FcntlArg::*, OFlag};
-
-    let flags = fcntl(*fd, F_GETFL)?;
-    let mut oflags = OFlag::from_bits_truncate(flags);
-    oflags |= OFlag::O_NONBLOCK;
-    fcntl(*fd, F_SETFL(oflags))?;
-
-    Ok(())
-}
-
-fn read_non_blocking<R: Read + ?Sized>(
-    source: &mut R,
-    buf: &mut [u8],
-) -> io::Result<Option<usize>> {
-    match source.read(buf) {
-        Ok(n) => Ok(Some(n)),
-
-        Err(e) => {
-            if e.kind() == ErrorKind::WouldBlock {
-                Ok(None)
-            } else if e.raw_os_error().is_some_and(|code| code == 5) {
-                Ok(Some(0))
-            } else {
-                return Err(e);
-            }
-        }
-    }
-}
-
-fn write_non_blocking<W: Write + ?Sized>(sink: &mut W, buf: &[u8]) -> io::Result<Option<usize>> {
-    match sink.write(buf) {
-        Ok(n) => Ok(Some(n)),
-
-        Err(e) => {
-            if e.kind() == ErrorKind::WouldBlock {
-                Ok(None)
-            } else if e.raw_os_error().is_some_and(|code| code == 5) {
-                Ok(Some(0))
-            } else {
-                return Err(e);
-            }
-        }
-    }
 }
