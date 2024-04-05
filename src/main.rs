@@ -103,7 +103,7 @@ fn read_stdin(sender: mpsc::Sender<Message>) {
         }
     }
 
-    sender.send(Message::StdinClosed).unwrap();
+    let _ = sender.send(Message::StdinClosed);
 }
 
 fn handle_process(
