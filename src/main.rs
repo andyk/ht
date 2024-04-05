@@ -59,8 +59,9 @@ fn handle_parent(master_fd: RawFd, child: unistd::Pid) {
     let input = unsafe { File::from_raw_fd(input_tx.as_raw_fd()) };
     let sender_ = sender.clone();
 
+    thread::spawn(move || read_stdin(sender_));
+
     thread::scope(|s| {
-        s.spawn(move || read_stdin(sender_));
         s.spawn(move || handle_process(master_fd, input_rx, sender, child));
         process_messages(receiver, input);
     });
