@@ -19,8 +19,10 @@ use std::{
 
 #[derive(Debug)]
 enum Message {
-    Output(String),
     Command(Command),
+    Output(String),
+    StdinClosed,
+    ChildExited,
 }
 
 #[derive(Debug)]
@@ -40,7 +42,9 @@ fn main() {
     let result = unsafe { pty::forkpty(Some(&winsize), None) }.unwrap();
 
     match result.fork_result {
-        ForkResult::Parent { child } => handle_parent(result.master.as_raw_fd(), child),
+        ForkResult::Parent { child } => {
+            handle_parent(result.master.as_raw_fd(), child);
+        }
 
         ForkResult::Child => {
             handle_child("bash").unwrap();
@@ -57,9 +61,8 @@ fn handle_parent(master_fd: RawFd, child: unistd::Pid) {
 
     thread::scope(|s| {
         s.spawn(move || read_stdin(sender_));
-        s.spawn(move || handle_master(master_fd, input_rx, sender));
+        s.spawn(move || handle_process(master_fd, input_rx, sender, child));
         process_messages(receiver, input);
-        let _ = wait::waitpid(child, None);
     });
 }
 
@@ -80,7 +83,7 @@ where
 }
 
 fn read_stdin(sender: mpsc::Sender<Message>) {
-    for line in std::io::stdin().lines() {
+    for line in io::stdin().lines() {
         let json: serde_json::Value = serde_json::from_str(&line.unwrap()).unwrap();
 
         match json["action"].as_str() {
@@ -99,10 +102,24 @@ fn read_stdin(sender: mpsc::Sender<Message>) {
         }
     }
 
-    println!("input closed!");
+    sender.send(Message::StdinClosed).unwrap();
 }
 
-fn handle_master(master_fd: RawFd, input_rx: OwnedFd, sender: mpsc::Sender<Message>) {
+fn handle_process(
+    master_fd: RawFd,
+    input_rx: OwnedFd,
+    sender: mpsc::Sender<Message>,
+    child: unistd::Pid,
+) {
+    handle_pty(master_fd, input_rx, sender.clone());
+    eprintln!("killing the child with HUP");
+    unsafe { libc::kill(child.as_raw(), libc::SIGHUP) };
+    eprintln!("waiting for child's exit status");
+    let _ = wait::waitpid(child, None);
+    let _ = sender.send(Message::ChildExited);
+}
+
+fn handle_pty(master_fd: RawFd, input_rx: OwnedFd, sender: mpsc::Sender<Message>) {
     const MASTER: mio::Token = mio::Token(0);
     const INPUT: mio::Token = mio::Token(1);
     const BUF_SIZE: usize = 128 * 1024;
@@ -182,11 +199,10 @@ fn handle_master(master_fd: RawFd, input_rx: OwnedFd, sender: mpsc::Sender<Messa
                         }
                     }
 
-                    // needed?
-                    // if event.is_read_closed() {
-                    //     poll.registry().deregister(&mut master_source).unwrap();
-                    //     return;
-                    // }
+                    if event.is_read_closed() {
+                        eprintln!("master closed");
+                        return;
+                    }
                 }
 
                 INPUT => {
@@ -207,16 +223,16 @@ fn handle_master(master_fd: RawFd, input_rx: OwnedFd, sender: mpsc::Sender<Messa
                                     )
                                     .unwrap();
                             } else {
+                                eprintln!("input read is empty");
                                 return;
                             }
                         }
                     }
 
-                    // needed?
-                    // if event.is_read_closed() {
-                    //     poll.registry().deregister(&mut input_source).unwrap();
-                    //     return;
-                    // }
+                    if event.is_read_closed() {
+                        eprintln!("input closed");
+                        return;
+                    }
                 }
 
                 _ => (),
@@ -248,6 +264,18 @@ fn process_messages(receiver: mpsc::Receiver<Message>, mut input: File) {
 
             Message::Output(o) => {
                 vt.feed_str(&o);
+            }
+
+            Message::StdinClosed => {
+                eprintln!("stdin closed, closing child process input");
+                std::mem::drop(input);
+                break;
+            }
+
+            Message::ChildExited => {
+                eprintln!("child process exited, closing stdin");
+                let _ = nix::unistd::close(io::stdin().as_raw_fd());
+                break;
             }
         }
     }
