@@ -84,20 +84,20 @@ where
 
 fn read_stdin(sender: mpsc::Sender<Message>) {
     for line in io::stdin().lines() {
-        let json: serde_json::Value = serde_json::from_str(&line.unwrap()).unwrap();
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line.unwrap()) {
+            match json["action"].as_str() {
+                Some("input") => {
+                    let i = json["payload"].as_str().unwrap().to_string();
+                    sender.send(Message::Command(Command::Input(i))).unwrap();
+                }
 
-        match json["action"].as_str() {
-            Some("input") => {
-                let i = json["payload"].as_str().unwrap().to_string();
-                sender.send(Message::Command(Command::Input(i))).unwrap();
-            }
+                Some("getView") => {
+                    sender.send(Message::Command(Command::GetView)).unwrap();
+                }
 
-            Some("getView") => {
-                sender.send(Message::Command(Command::GetView)).unwrap();
-            }
-
-            other => {
-                eprintln!("invalid action: {other:?}");
+                other => {
+                    eprintln!("invalid action: {other:?}");
+                }
             }
         }
     }
