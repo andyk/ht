@@ -3,6 +3,7 @@ use mio::unix::SourceFd;
 use nix::libc;
 use nix::pty;
 use nix::sys::signal::{self, SigHandler, Signal};
+use nix::sys::wait;
 use nix::unistd::{self, ForkResult};
 use std::env;
 use std::ffi::{CString, NulError};
@@ -58,6 +59,7 @@ fn handle_parent(master_fd: RawFd, child: unistd::Pid) {
         s.spawn(move || read_stdin(sender_));
         s.spawn(move || handle_master(master_fd, input_rx, sender));
         process_messages(receiver, input);
+        let _ = wait::waitpid(child, None);
     });
 }
 
