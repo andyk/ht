@@ -42,7 +42,7 @@ fn main() {
         ForkResult::Parent { child } => handle_parent(result.master.as_raw_fd(), child),
 
         ForkResult::Child => {
-            handle_child(&["/bin/sh"]).unwrap();
+            handle_child("bash").unwrap();
             unreachable!();
         }
     }
@@ -62,13 +62,13 @@ fn handle_parent(master_fd: RawFd, child: unistd::Pid) {
     });
 }
 
-fn handle_child<S>(command: &[S]) -> io::Result<()>
+fn handle_child<S>(command: S) -> io::Result<()>
 where
-    S: AsRef<str>,
+    S: ToString,
 {
-    let command = command
+    let command = vec!["/bin/sh".to_owned(), "-c".to_owned(), command.to_string()]
         .iter()
-        .map(|s| CString::new(s.as_ref()))
+        .map(|s| CString::new(s.as_bytes()))
         .collect::<Result<Vec<CString>, NulError>>()
         .unwrap();
 
