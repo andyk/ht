@@ -19,6 +19,8 @@
               libiconv
               darwin.apple_sdk.frameworks.Foundation
             ]);
+
+            RUSTUP_TOOLCHAIN = "1.74";
           };
         }
       );
