@@ -1,5 +1,6 @@
 mod locale;
 mod nbio;
+use anyhow::{bail, Result};
 use mio::unix::SourceFd;
 use nix::libc;
 use nix::pty;
@@ -32,7 +33,7 @@ enum Command {
     GetView,
 }
 
-fn main() -> anyhow::Result<()> {
+fn main() -> Result<()> {
     locale::check_utf8_locale()?;
 
     let winsize = pty::Winsize {
@@ -42,15 +43,15 @@ fn main() -> anyhow::Result<()> {
         ws_ypixel: 0,
     };
 
-    let result = unsafe { pty::forkpty(Some(&winsize), None) }.unwrap();
+    let result = unsafe { pty::forkpty(Some(&winsize), None) }?;
 
     match result.fork_result {
         ForkResult::Parent { child } => {
-            handle_parent(result.master.as_raw_fd(), child);
+            handle_parent(result.master.as_raw_fd(), child)?;
         }
 
         ForkResult::Child => {
-            handle_child("bash").unwrap();
+            handle_child("bash")?;
             unreachable!();
         }
     }
@@ -58,18 +59,17 @@ fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn handle_parent(master_fd: RawFd, child: unistd::Pid) {
+fn handle_parent(master_fd: RawFd, child: unistd::Pid) -> Result<()> {
     let (sender, receiver) = mpsc::channel::<Message>();
-    let (input_rx, input_tx) = nix::unistd::pipe().unwrap();
+    let (input_rx, input_tx) = nix::unistd::pipe()?;
     let input = unsafe { File::from_raw_fd(input_tx.as_raw_fd()) };
     let sender_ = sender.clone();
 
     thread::spawn(move || read_stdin(sender_));
+    let handle = thread::spawn(move || handle_process(master_fd, input_rx, sender, child));
+    process_messages(receiver, input);
 
-    thread::scope(|s| {
-        s.spawn(move || handle_process(master_fd, input_rx, sender, child));
-        process_messages(receiver, input);
-    });
+    handle.join().map_err(|e| anyhow::anyhow!("{e:?}"))?
 }
 
 fn handle_child<S>(command: S) -> io::Result<()>
@@ -79,26 +79,25 @@ where
     let command = vec!["/bin/sh".to_owned(), "-c".to_owned(), command.to_string()]
         .iter()
         .map(|s| CString::new(s.as_bytes()))
-        .collect::<Result<Vec<CString>, NulError>>()
-        .unwrap();
+        .collect::<Result<Vec<CString>, NulError>>()?;
 
     env::set_var("TERM", "xterm-256color");
-    unsafe { signal::signal(Signal::SIGPIPE, SigHandler::SigDfl) }.unwrap();
-    unistd::execvp(&command[0], &command).unwrap();
+    unsafe { signal::signal(Signal::SIGPIPE, SigHandler::SigDfl) }?;
+    unistd::execvp(&command[0], &command)?;
     unsafe { libc::_exit(1) }
 }
 
-fn read_stdin(sender: mpsc::Sender<Message>) {
+fn read_stdin(sender: mpsc::Sender<Message>) -> Result<()> {
     for line in io::stdin().lines() {
-        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line.unwrap()) {
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line?) {
             match json["action"].as_str() {
                 Some("input") => {
                     let i = json["payload"].as_str().unwrap().to_string();
-                    sender.send(Message::Command(Command::Input(i))).unwrap();
+                    sender.send(Message::Command(Command::Input(i)))?;
                 }
 
                 Some("getView") => {
-                    sender.send(Message::Command(Command::GetView)).unwrap();
+                    sender.send(Message::Command(Command::GetView))?;
                 }
 
                 other => {
@@ -109,6 +108,8 @@ fn read_stdin(sender: mpsc::Sender<Message>) {
     }
 
     let _ = sender.send(Message::StdinClosed);
+
+    Ok(())
 }
 
 fn handle_process(
@@ -116,21 +117,23 @@ fn handle_process(
     input_rx: OwnedFd,
     sender: mpsc::Sender<Message>,
     child: unistd::Pid,
-) {
-    handle_pty(master_fd, input_rx, sender.clone());
+) -> Result<()> {
+    let result = handle_pty(master_fd, input_rx, sender.clone());
     eprintln!("killing the child with HUP");
     unsafe { libc::kill(child.as_raw(), libc::SIGHUP) };
     eprintln!("waiting for child's exit status");
     let _ = wait::waitpid(child, None);
     let _ = sender.send(Message::ChildExited);
+
+    result
 }
 
-fn handle_pty(master_fd: RawFd, input_rx: OwnedFd, sender: mpsc::Sender<Message>) {
+fn handle_pty(master_fd: RawFd, input_rx: OwnedFd, sender: mpsc::Sender<Message>) -> Result<()> {
     const MASTER: mio::Token = mio::Token(0);
     const INPUT: mio::Token = mio::Token(1);
     const BUF_SIZE: usize = 128 * 1024;
 
-    let mut poll = mio::Poll::new().unwrap();
+    let mut poll = mio::Poll::new()?;
     let mut events = mio::Events::with_capacity(128);
     let mut master_file = unsafe { File::from_raw_fd(master_fd) };
     let mut master_source = SourceFd(&master_fd);
@@ -139,23 +142,21 @@ fn handle_pty(master_fd: RawFd, input_rx: OwnedFd, sender: mpsc::Sender<Message>
     let mut input_source = SourceFd(&input_fd);
     let mut buf = [0u8; BUF_SIZE];
     let mut input: Vec<u8> = Vec::with_capacity(BUF_SIZE);
-    nbio::set_non_blocking(&input_fd).unwrap();
-    nbio::set_non_blocking(&master_fd).unwrap();
+    nbio::set_non_blocking(&input_fd)?;
+    nbio::set_non_blocking(&master_fd)?;
 
     poll.registry()
-        .register(&mut master_source, MASTER, mio::Interest::READABLE)
-        .unwrap();
+        .register(&mut master_source, MASTER, mio::Interest::READABLE)?;
 
     poll.registry()
-        .register(&mut input_source, INPUT, mio::Interest::READABLE)
-        .unwrap();
+        .register(&mut input_source, INPUT, mio::Interest::READABLE)?;
 
     loop {
         if let Err(e) = poll.poll(&mut events, None) {
             if e.kind() == io::ErrorKind::Interrupted {
                 continue;
             } else {
-                panic!("{}", e);
+                bail!(e);
             }
         }
 
@@ -165,16 +166,14 @@ fn handle_pty(master_fd: RawFd, input_rx: OwnedFd, sender: mpsc::Sender<Message>
                     if event.is_readable() {
                         println!("master read");
 
-                        while let Some(n) = nbio::read(&mut master_file, &mut buf).unwrap() {
+                        while let Some(n) = nbio::read(&mut master_file, &mut buf)? {
                             if n > 0 {
-                                sender
-                                    .send(Message::Output(
-                                        String::from_utf8_lossy(&buf[0..n]).to_string(),
-                                    ))
-                                    .unwrap();
+                                sender.send(Message::Output(
+                                    String::from_utf8_lossy(&buf[0..n]).to_string(),
+                                ))?;
                             } else {
                                 println!("master read closed");
-                                return;
+                                return Ok(());
                             }
                         }
                     }
@@ -184,7 +183,7 @@ fn handle_pty(master_fd: RawFd, input_rx: OwnedFd, sender: mpsc::Sender<Message>
 
                         let mut buf: &[u8] = input.as_ref();
 
-                        while let Some(n) = nbio::write(&mut master_file, buf).unwrap() {
+                        while let Some(n) = nbio::write(&mut master_file, buf)? {
                             buf = &buf[n..];
 
                             if buf.is_empty() {
@@ -197,9 +196,11 @@ fn handle_pty(master_fd: RawFd, input_rx: OwnedFd, sender: mpsc::Sender<Message>
                         if left == 0 {
                             input.clear();
 
-                            poll.registry()
-                                .reregister(&mut master_source, MASTER, mio::Interest::READABLE)
-                                .unwrap();
+                            poll.registry().reregister(
+                                &mut master_source,
+                                MASTER,
+                                mio::Interest::READABLE,
+                            )?;
                         } else {
                             input.drain(..input.len() - left);
                         }
@@ -207,7 +208,7 @@ fn handle_pty(master_fd: RawFd, input_rx: OwnedFd, sender: mpsc::Sender<Message>
 
                     if event.is_read_closed() {
                         eprintln!("master closed");
-                        return;
+                        return Ok(());
                     }
                 }
 
@@ -215,29 +216,27 @@ fn handle_pty(master_fd: RawFd, input_rx: OwnedFd, sender: mpsc::Sender<Message>
                     if event.is_readable() {
                         println!("input read");
 
-                        while let Some(n) = nbio::read(&mut input_file, &mut buf).unwrap() {
+                        while let Some(n) = nbio::read(&mut input_file, &mut buf)? {
                             println!("read some input! {n}");
 
                             if n > 0 {
                                 input.extend_from_slice(&buf[0..n]);
 
-                                poll.registry()
-                                    .reregister(
-                                        &mut master_source,
-                                        MASTER,
-                                        mio::Interest::READABLE | mio::Interest::WRITABLE,
-                                    )
-                                    .unwrap();
+                                poll.registry().reregister(
+                                    &mut master_source,
+                                    MASTER,
+                                    mio::Interest::READABLE | mio::Interest::WRITABLE,
+                                )?;
                             } else {
                                 eprintln!("input read is empty");
-                                return;
+                                return Ok(());
                             }
                         }
                     }
 
                     if event.is_read_closed() {
                         eprintln!("input closed");
-                        return;
+                        return Ok(());
                     }
                 }
 
