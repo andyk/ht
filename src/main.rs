@@ -1,3 +1,4 @@
+mod locale;
 mod nbio;
 use mio::unix::SourceFd;
 use nix::libc;
@@ -31,7 +32,9 @@ enum Command {
     GetView,
 }
 
-fn main() {
+fn main() -> anyhow::Result<()> {
+    locale::check_utf8_locale()?;
+
     let winsize = pty::Winsize {
         ws_col: 80,
         ws_row: 24,
@@ -51,6 +54,8 @@ fn main() {
             unreachable!();
         }
     }
+
+    Ok(())
 }
 
 fn handle_parent(master_fd: RawFd, child: unistd::Pid) {
