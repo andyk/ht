@@ -1,3 +1,4 @@
+mod cli;
 mod locale;
 mod nbio;
 use anyhow::{bail, Result};
@@ -36,14 +37,15 @@ enum Command {
 fn main() -> Result<()> {
     locale::check_utf8_locale()?;
 
-    let winsize = pty::Winsize {
-        ws_col: 80,
-        ws_row: 24,
-        ws_xpixel: 0,
-        ws_ypixel: 0,
-    };
+    let cli = cli::Cli::new();
+    let command = cli.command.join(" ");
 
-    let result = unsafe { pty::forkpty(Some(&winsize), None) }?;
+    eprintln!(
+        "launching command \"{command}\" in terminal of size {}",
+        cli.size
+    );
+
+    let result = unsafe { pty::forkpty(Some(&*cli.size), None) }?;
 
     match result.fork_result {
         ForkResult::Parent { child } => {
@@ -51,7 +53,7 @@ fn main() -> Result<()> {
         }
 
         ForkResult::Child => {
-            handle_child("bash")?;
+            handle_child(command)?;
             unreachable!();
         }
     }
