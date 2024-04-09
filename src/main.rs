@@ -32,6 +32,7 @@ enum Message {
 enum Command {
     Input(String),
     GetView,
+    Resize(usize, usize),
 }
 
 fn main() -> Result<()> {
@@ -96,6 +97,21 @@ fn read_stdin(sender: mpsc::Sender<Message>) -> Result<()> {
                 Some("input") => {
                     let i = json["payload"].as_str().unwrap().to_string();
                     sender.send(Message::Command(Command::Input(i)))?;
+                }
+
+                Some("resize") => {
+                    let cols = json["cols"]
+                        .as_u64()
+                        .ok_or(anyhow::anyhow!("cols missing"))?;
+
+                    let rows = json["rows"]
+                        .as_u64()
+                        .ok_or(anyhow::anyhow!("rows missing"))?;
+
+                    sender.send(Message::Command(Command::Resize(
+                        cols as usize,
+                        rows as usize,
+                    )))?;
                 }
 
                 Some("getView") => {
@@ -249,7 +265,7 @@ fn handle_pty(master_fd: RawFd, input_rx: OwnedFd, sender: mpsc::Sender<Message>
 }
 
 fn process_messages(receiver: mpsc::Receiver<Message>, mut input: File) {
-    let mut vt = avt::Vt::builder().size(80, 24).build();
+    let mut vt = avt::Vt::builder().size(80, 24).resizable(true).build();
 
     for message in receiver {
         match message {
@@ -267,6 +283,10 @@ fn process_messages(receiver: mpsc::Receiver<Message>, mut input: File) {
 
                 let resp = serde_json::json!({ "view": text });
                 println!("{}", serde_json::to_string(&resp).unwrap());
+            }
+
+            Message::Command(Command::Resize(cols, rows)) => {
+                vt.feed_str(&format!("\x1b[8;{};{}t", rows, cols));
             }
 
             Message::Output(o) => {
