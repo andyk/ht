@@ -104,8 +104,8 @@ where
 
 fn read_stdin(sender: mpsc::Sender<Message>) -> Result<()> {
     for line in io::stdin().lines() {
-        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line?) {
-            match json["type"].as_str() {
+        match serde_json::from_str::<serde_json::Value>(&line?) {
+            Ok(json) => match json["type"].as_str() {
                 Some("input") => {
                     let payload = json["payload"]
                         .as_str()
@@ -135,8 +135,12 @@ fn read_stdin(sender: mpsc::Sender<Message>) -> Result<()> {
                 }
 
                 other => {
-                    eprintln!("invalid action: {other:?}");
+                    eprintln!("invalid command type: {other:?}");
                 }
+            },
+
+            Err(e) => {
+                eprintln!("JSON parse error: {e}");
             }
         }
     }
