@@ -153,7 +153,7 @@ fn handle_process(
     let result = handle_pty(master_fd, input_rx, sender.clone());
     eprintln!("killing the child with HUP");
     unsafe { libc::kill(child.as_raw(), libc::SIGHUP) };
-    eprintln!("waiting for child's exit status");
+    eprintln!("waiting for child exit");
     let _ = wait::waitpid(child, None);
 
     result
@@ -195,23 +195,18 @@ fn handle_pty(master_fd: RawFd, input_rx: OwnedFd, sender: mpsc::Sender<Message>
             match event.token() {
                 MASTER => {
                     if event.is_readable() {
-                        println!("master read");
-
                         while let Some(n) = nbio::read(&mut master_file, &mut buf)? {
                             if n > 0 {
                                 sender.send(Message::Output(
                                     String::from_utf8_lossy(&buf[0..n]).to_string(),
                                 ))?;
                             } else {
-                                println!("master read closed");
                                 return Ok(());
                             }
                         }
                     }
 
                     if event.is_writable() {
-                        println!("master write");
-
                         let mut buf: &[u8] = input.as_ref();
 
                         while let Some(n) = nbio::write(&mut master_file, buf)? {
@@ -238,18 +233,13 @@ fn handle_pty(master_fd: RawFd, input_rx: OwnedFd, sender: mpsc::Sender<Message>
                     }
 
                     if event.is_read_closed() {
-                        eprintln!("master closed");
                         return Ok(());
                     }
                 }
 
                 INPUT => {
                     if event.is_readable() {
-                        println!("input read");
-
                         while let Some(n) = nbio::read(&mut input_file, &mut buf)? {
-                            println!("read some input! {n}");
-
                             if n > 0 {
                                 input.extend_from_slice(&buf[0..n]);
 
@@ -259,14 +249,12 @@ fn handle_pty(master_fd: RawFd, input_rx: OwnedFd, sender: mpsc::Sender<Message>
                                     mio::Interest::READABLE | mio::Interest::WRITABLE,
                                 )?;
                             } else {
-                                eprintln!("input read is empty");
                                 return Ok(());
                             }
                         }
                     }
 
                     if event.is_read_closed() {
-                        eprintln!("input closed");
                         return Ok(());
                     }
                 }
