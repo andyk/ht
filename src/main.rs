@@ -95,8 +95,12 @@ fn read_stdin(sender: mpsc::Sender<Message>) -> Result<()> {
         if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line?) {
             match json["type"].as_str() {
                 Some("input") => {
-                    let i = json["payload"].as_str().unwrap().to_string();
-                    sender.send(Message::Command(Command::Input(i)))?;
+                    let payload = json["payload"]
+                        .as_str()
+                        .ok_or(anyhow::anyhow!("payload missing"))?
+                        .to_string();
+
+                    sender.send(Message::Command(Command::Input(payload)))?;
                 }
 
                 Some("resize") => {
