@@ -92,7 +92,7 @@ where
 fn read_stdin(sender: mpsc::Sender<Message>) -> Result<()> {
     for line in io::stdin().lines() {
         if let Ok(json) = serde_json::from_str::<serde_json::Value>(&line?) {
-            match json["action"].as_str() {
+            match json["type"].as_str() {
                 Some("input") => {
                     let i = json["payload"].as_str().unwrap().to_string();
                     sender.send(Message::Command(Command::Input(i)))?;
