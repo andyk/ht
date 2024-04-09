@@ -78,7 +78,7 @@ fn handle_child<S>(command: S) -> io::Result<()>
 where
     S: ToString,
 {
-    let command = vec!["/bin/sh".to_owned(), "-c".to_owned(), command.to_string()]
+    let command = ["/bin/sh".to_owned(), "-c".to_owned(), command.to_string()]
         .iter()
         .map(|s| CString::new(s.as_bytes()))
         .collect::<Result<Vec<CString>, NulError>>()?;
