@@ -68,8 +68,20 @@ fn handle_parent(master_fd: RawFd, child: unistd::Pid) -> Result<()> {
     let input = unsafe { File::from_raw_fd(input_tx.as_raw_fd()) };
     let sender_ = sender.clone();
 
-    thread::spawn(move || read_stdin(sender_));
-    let handle = thread::spawn(move || handle_process(master_fd, input_rx, sender, child));
+    thread::spawn(move || {
+        let result = read_stdin(sender_.clone());
+        let _ = sender_.send(Message::StdinClosed);
+
+        result
+    });
+
+    let handle = thread::spawn(move || {
+        let result = handle_process(master_fd, input_rx, sender.clone(), child);
+        let _ = sender.send(Message::ChildExited);
+
+        result
+    });
+
     process_messages(receiver, input);
 
     handle.join().map_err(|e| anyhow::anyhow!("{e:?}"))?
@@ -129,8 +141,6 @@ fn read_stdin(sender: mpsc::Sender<Message>) -> Result<()> {
         }
     }
 
-    let _ = sender.send(Message::StdinClosed);
-
     Ok(())
 }
 
@@ -145,7 +155,6 @@ fn handle_process(
     unsafe { libc::kill(child.as_raw(), libc::SIGHUP) };
     eprintln!("waiting for child's exit status");
     let _ = wait::waitpid(child, None);
-    let _ = sender.send(Message::ChildExited);
 
     result
 }
