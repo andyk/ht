@@ -5,7 +5,7 @@ use std::{fmt::Display, ops::Deref, str::FromStr};
 
 #[derive(Debug, Parser)]
 #[clap(version, about)]
-#[command(name = "vt")]
+#[command(name = "ht")]
 pub struct Cli {
     /// Terminal size
     #[arg(long, value_name = "COLSxROWS", default_value = Some("120x40"))]

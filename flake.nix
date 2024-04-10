@@ -1,5 +1,5 @@
 {
-  description = "vt";
+  description = "ht";
 
   inputs = {
     nixpkgs.url = github:nixos/nixpkgs/nixpkgs-unstable;
