@@ -55,5 +55,5 @@ jobs:
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: target/${{ matrix.target }}/release/ht
-          asset_name: ht-${{ matrix.target }}$
+          asset_name: ht-${{ matrix.target }}
           tag: ${{ github.ref }}
