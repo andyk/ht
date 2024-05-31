@@ -1,6 +1,6 @@
 # ht - headless terminal
 
-`ht` is a command line program (short for *headless terminal*) that wraps an arbitrary other binary (e.g. `bash`, `vim`, etc.) with a VT100 style terminal interface--i.e. a pseudoterminal client (PTY) plus terminal server--and allows easy programmatic access to the input and output of that terminal (via JSON over stdin/stdout). `ht` is built in rust and works on MacOS and Linux.
+`ht` (short for *headless terminal*) is a command line program that wraps an arbitrary other binary (e.g. `bash`, `vim`, etc.) with a VT100 style terminal interface--i.e. a pseudoterminal client (PTY) plus terminal server--and allows easy programmatic access to the input and output of that terminal (via JSON over stdin/stdout). `ht` is built in rust and works on MacOS and Linux.
 
 ## Building
 
