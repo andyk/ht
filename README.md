@@ -16,7 +16,7 @@ To download the source code, build the binary, and install it in
 `$HOME/.cargo/bin` run:
 
 ```sh
-cargo install --git https://github.com/andyk/termproxy
+cargo install --git https://github.com/andyk/ht
 ```
 
 Then, ensure `$HOME/.cargo/bin` is in your shell's `$PATH`.
@@ -25,8 +25,8 @@ Alternatively, you can manually download the source code and build the binary
 with:
 
 ```sh
-git clone https://github.com/andyk/termproxy
-cd termproxy
+git clone https://github.com/andyk/ht
+cd ht
 cargo build --release
 ```
 
