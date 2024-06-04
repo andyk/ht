@@ -2,6 +2,14 @@
 
 `ht` (short for *headless terminal*) is a command line program that wraps an arbitrary other binary (e.g. `bash`, `vim`, etc.) with a VT100 style terminal interface--i.e. a pseudoterminal client (PTY) plus terminal server--and allows easy programmatic access to the input and output of that terminal (via JSON over stdin/stdout). `ht` is built in rust and works on MacOS and Linux.
 
+## Use Cases & Motivation 
+
+`ht` is useful for programmatically interacting with terminals, which is important for programs that depend heavily on the Terminal as UI. It is useful for testing and for getting AI agents to interact with terminals the way humans do.
+
+As the original motiving use case was, I was trying to use LLM agents for coding, and needed something like a headless browser but for terminals.
+
+Terminals are one of the oldest and most prolific UI frameworks in all of computing. And they are stateful so, for example, when you use an editor in your terminal, the terminal has to manage state about the cursor location. Without ht, an agent struggles to manage this state directly; with ht, an agent can just observe the terminal like a human does.
+
 ## Installing
 Download and use [the latest binary](https://github.com/andyk/ht/releases/latest) for your architecture.
 
