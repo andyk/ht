@@ -148,7 +148,7 @@ TODO: either pull those into this repo or fork them into their own `htlib` repo.
 Would be great to update the interface to return the view with additional color and style information (text color, background, bold/italic/etc) also in a simple JSON format (so no dealing with color-related escape sequence either), and the frontend could render this using HTML (e.g. with styled pre/span tags, similar to how asciinema-player does it) or with SVG.
 
 ## Alternatives and related projects
-[`expect`](https://core.tcl-lang.org/expect/index) is a very very cool and related tool that let's you `spawn` an arbitrary binary and then `send` input to it and specify what output you `expect` it to generate next.
+[`expect`](https://core.tcl-lang.org/expect/index) is an old related tool that let's you `spawn` an arbitrary binary and then `send` input to it and specify what output you `expect` it to generate next.
 
 Also, note that if there exists an explicit API to achieve your given task (e.g. a library that comes with the tool you're targeting), it will probably be less bug prone/finicky to use the API directly rather than working witht your tool through `ht`.
 
