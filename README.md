@@ -137,10 +137,6 @@ To use `rlwrap` with `ht`:
 rlwrap ht [ht-args...]
 ```
 
-## Design doc
-
-Here is [the original design doc](https://docs.google.com/document/d/1L1prpWos3gIYTkfCgeZ2hLScypkA73WJ9KxME5NNbNk/edit) we used to drive the project development.
-
 ## Python and Typescript libs
 
 Here are some experimental versions of a simple Python and Typescript libraries that wrap `ht`: [htlib.py](https://github.com/andyk/headlong/blob/24e9e5f37b79b3a667774eefa3a724b59b059775/packages/env/htlib.py) and a [htlib.ts](https://github.com/andyk/headlong/blob/24e9e5f37b79b3a667774eefa3a724b59b059775/packages/env/htlib.ts).
@@ -150,6 +146,17 @@ TODO: either pull those into this repo or fork them into their own `htlib` repo.
 ## Possible future work
 
 Would be great to update the interface to return the view with additional color and style information (text color, background, bold/italic/etc) also in a simple JSON format (so no dealing with color-related escape sequence either), and the frontend could render this using HTML (e.g. with styled pre/span tags, similar to how asciinema-player does it) or with SVG.
+
+## Alternatives and related projects
+[`expect`](https://core.tcl-lang.org/expect/index) is a very very cool and related tool that let's you `spawn` an arbitrary binary and then `send` input to it and specify what output you `expect` it to generate next.
+
+Also, note that if there exists an explicit API to achieve your given task (e.g. a library that comes with the tool you're targeting), it will probably be less bug prone/finicky to use the API directly rather than working witht your tool through `ht`.
+
+See also [this hackernews discussion](https://news.ycombinator.com/item?id=40552257) where a bunch of other tools were discussed!
+
+## Design doc
+
+Here is [the original design doc](https://docs.google.com/document/d/1L1prpWos3gIYTkfCgeZ2hLScypkA73WJ9KxME5NNbNk/edit) we used to drive the project development.
 
 ## License
 
