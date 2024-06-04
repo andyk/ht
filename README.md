@@ -77,6 +77,12 @@ virtual terminal as if the input was typed on a keyboard.
 { "type": "input", "payload": "ls\r" }
 ```
 
+To send control characters (e.g., ctrl-c), include in your input json the ascii control character that the keyboard combo would generate (e.g., \x03 for ctrl-c). So to send control-c to the terminal, send the following JSON message to ht:
+
+```json
+{ "type": "input", "payload": "\x03" }
+```
+
 This command doesn't produce any output on stdout.
 
 ### getView
@@ -119,6 +125,9 @@ To use `rlwrap` with `ht`:
 ```sh
 rlwrap ht [ht-args...]
 ```
+
+## Design doc
+Here is [the original design doc](https://docs.google.com/document/d/1L1prpWos3gIYTkfCgeZ2hLScypkA73WJ9KxME5NNbNk/edit) we used to drive the project development.
 
 ## Python and Typescript libs
 Here are some experimental versions of a simple Python and Typescript libraries that wrap `ht`: [htlib.py](https://github.com/andyk/headlong/blob/24e9e5f37b79b3a667774eefa3a724b59b059775/packages/env/htlib.py) and a [htlib.ts](https://github.com/andyk/headlong/blob/24e9e5f37b79b3a667774eefa3a724b59b059775/packages/env/htlib.ts).
