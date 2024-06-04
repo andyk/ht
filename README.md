@@ -120,6 +120,11 @@ To use `rlwrap` with `ht`:
 rlwrap ht [ht-args...]
 ```
 
+## Python and Typescript libs
+Here are some experimental versions of a simple Python and Typescript libraries that wrap `ht`: [htlib.py](https://github.com/andyk/headlong/blob/24e9e5f37b79b3a667774eefa3a724b59b059775/packages/env/htlib.py) and a [htlib.ts](https://github.com/andyk/headlong/blob/24e9e5f37b79b3a667774eefa3a724b59b059775/packages/env/htlib.ts).
+
+TODO: either pull those into this repo or fork them into their own `htlib` repo.
+
 ## License
 
 All code is licensed under the Apache License, Version 2.0. See LICENSE file for
