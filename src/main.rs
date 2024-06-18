@@ -1,7 +1,9 @@
 mod cli;
+mod command;
 mod locale;
 mod nbio;
 use anyhow::{bail, Result};
+use command::Command;
 use mio::unix::SourceFd;
 use nix::libc;
 use nix::pty;
@@ -26,13 +28,6 @@ enum Message {
     Output(String),
     StdinClosed,
     ChildExited,
-}
-
-#[derive(Debug)]
-enum Command {
-    Input(String),
-    GetView,
-    Resize(usize, usize),
 }
 
 fn main() -> Result<()> {
@@ -109,41 +104,13 @@ where
 
 fn read_stdin(sender: mpsc::Sender<Message>) -> Result<()> {
     for line in io::stdin().lines() {
-        match serde_json::from_str::<serde_json::Value>(&line?) {
-            Ok(json) => match parse_command(json) {
-                Ok(command) => sender.send(Message::Command(command))?,
-                Err(e) => eprintln!("command parse error: {e}"),
-            },
-
-            Err(e) => eprintln!("JSON parse error: {e}"),
+        match command::parse(&line?) {
+            Ok(command) => sender.send(Message::Command(command))?,
+            Err(e) => eprintln!("command parse error: {e}"),
         }
     }
 
     Ok(())
-}
-
-fn parse_command(json: serde_json::Value) -> Result<Command, String> {
-    match json["type"].as_str() {
-        Some("input") => {
-            let payload = json["payload"]
-                .as_str()
-                .ok_or("payload missing".to_string())?
-                .to_string();
-
-            Ok(Command::Input(payload))
-        }
-
-        Some("resize") => {
-            let cols = json["cols"].as_u64().ok_or("cols missing".to_string())?;
-            let rows = json["rows"].as_u64().ok_or("rows missing".to_string())?;
-
-            Ok(Command::Resize(cols as usize, rows as usize))
-        }
-
-        Some("getView") => Ok(Command::GetView),
-
-        other => Err(format!("invalid command type: {other:?}")),
-    }
 }
 
 fn handle_process(
