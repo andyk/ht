@@ -25,6 +25,16 @@ impl Cli {
 #[derive(Debug, Clone)]
 pub struct Size(pty::Winsize);
 
+impl Size {
+    pub fn cols(&self) -> usize {
+        self.0.ws_col as usize
+    }
+
+    pub fn rows(&self) -> usize {
+        self.0.ws_row as usize
+    }
+}
+
 impl FromStr for Size {
     type Err = anyhow::Error;
 

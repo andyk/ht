@@ -46,11 +46,16 @@ fn main() -> Result<()> {
         cli.size
     );
 
+    let vt = avt::Vt::builder()
+        .size(cli.size.cols(), cli.size.rows())
+        .resizable(true)
+        .build();
+
     let result = unsafe { pty::forkpty(Some(&*cli.size), None) }?;
 
     match result.fork_result {
         ForkResult::Parent { child } => {
-            handle_parent(result.master.as_raw_fd(), child)?;
+            handle_parent(result.master.as_raw_fd(), child, vt)?;
         }
 
         ForkResult::Child => {
@@ -62,7 +67,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn handle_parent(master_fd: RawFd, child: unistd::Pid) -> Result<()> {
+fn handle_parent(master_fd: RawFd, child: unistd::Pid, vt: avt::Vt) -> Result<()> {
     let (sender, receiver) = mpsc::channel::<Message>();
     let (input_rx, input_tx) = nix::unistd::pipe()?;
     let input = unsafe { File::from_raw_fd(input_tx.as_raw_fd()) };
@@ -82,7 +87,7 @@ fn handle_parent(master_fd: RawFd, child: unistd::Pid) -> Result<()> {
         result
     });
 
-    process_messages(receiver, input);
+    process_messages(receiver, input, vt);
 
     handle.join().map_err(|e| anyhow::anyhow!("{e:?}"))?
 }
@@ -262,9 +267,7 @@ fn handle_pty(master_fd: RawFd, input_rx: OwnedFd, sender: mpsc::Sender<Message>
     }
 }
 
-fn process_messages(receiver: mpsc::Receiver<Message>, mut input: File) {
-    let mut vt = avt::Vt::builder().size(80, 24).resizable(true).build();
-
+fn process_messages(receiver: mpsc::Receiver<Message>, mut input: File, mut vt: avt::Vt) {
     for message in receiver {
         match message {
             Message::Command(Command::Input(i)) => {
