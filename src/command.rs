@@ -60,49 +60,30 @@ fn parse_keys(keys: Vec<String>) -> String {
 }
 
 fn parse_key(key: String) -> String {
-    let key = match key.as_str() {
-        "C-@" => "\x00",
-        "C-a" => "\x01",
-        "C-b" => "\x02",
-        "C-c" => "\x03",
-        "C-d" => "\x04",
-        "C-e" => "\x05",
-        "C-f" => "\x06",
-        "C-g" => "\x07",
-        "C-h" => "\x08",
-        "C-i" => "\x09",
-        "C-j" => "\x0a",
-        "C-k" => "\x0b",
-        "C-l" => "\x0c",
-        "C-m" => "\x0d",
-        "C-n" => "\x0e",
-        "C-o" => "\x0f",
-        "C-p" => "\x10",
-        "C-q" => "\x11",
-        "C-r" => "\x12",
-        "C-s" => "\x13",
-        "C-t" => "\x14",
-        "C-u" => "\x15",
-        "C-v" => "\x16",
-        "C-w" => "\x17",
-        "C-x" => "\x18",
-        "C-y" => "\x19",
-        "C-z" => "\x1a",
-        "C-[" => "\x1b",
-        "C-\\" => "\x1c",
-        "C-]" => "\x1d",
-        "C-^" => "\x1e",
-        "C--" => "\x1f",
-        "C-Space" => "\x00", // same as C-@
-        "Tab" => "\x09",     // same as C-i
-        "Enter" => "\x0d",   // same as C-m
-        "Escape" => "\x1b",  // same as C-[
-        "C-/" => "\x1e",     // same as C-^
-        "C-_" => "\x1f",     // same as C--
-        _ => &key,
-    };
+    match key.as_str() {
+        "C-@" => "\x00".to_owned(),
+        "C-[" => "\x1b".to_owned(),
+        "C-\\" => "\x1c".to_owned(),
+        "C-]" => "\x1d".to_owned(),
+        "C-^" => "\x1e".to_owned(),
+        "C--" => "\x1f".to_owned(),
+        "C-Space" => "\x00".to_owned(), // same as C-@
+        "Tab" => "\x09".to_owned(),     // same as C-i
+        "Enter" => "\x0d".to_owned(),   // same as C-m
+        "Escape" => "\x1b".to_owned(),  // same as C-[
+        "C-/" => "\x1e".to_owned(),     // same as C-^
+        "C-_" => "\x1f".to_owned(),     // same as C--
 
-    key.to_owned()
+        k => {
+            let chars: Vec<char> = k.chars().collect();
+
+            match chars.as_slice() {
+                ['C', '-', k @ 'a'..='z'] => ((*k as u8 - 0x60) as char).to_string(),
+
+                _ => key,
+            }
+        }
+    }
 }
 
 fn args_from_json_value<T>(value: serde_json::Value) -> Result<T, String>
