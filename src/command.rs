@@ -61,10 +61,10 @@ fn parse_keys(keys: Vec<String>) -> String {
 
 fn parse_key(key: String) -> String {
     match key.as_str() {
-        "C-@" | "C-Space" => "\x00".to_owned(),
-        "C-[" | "Escape" => "\x1b".to_owned(),
-        "C-\\" => "\x1c".to_owned(),
-        "C-]" => "\x1d".to_owned(),
+        "C-@" | "C-Space" | "^@" => "\x00".to_owned(),
+        "C-[" | "Escape" | "^[" => "\x1b".to_owned(),
+        "C-\\" | "^\\" => "\x1c".to_owned(),
+        "C-]" | "^]" => "\x1d".to_owned(),
         "C-^" | "C-/" => "\x1e".to_owned(),
         "C--" | "C-_" => "\x1f".to_owned(),
         "Tab" => "\x09".to_owned(),   // same as C-i
@@ -94,6 +94,7 @@ fn parse_key(key: String) -> String {
 
             match chars.as_slice() {
                 ['C', '-', k @ 'a'..='z'] => ((*k as u8 - 0x60) as char).to_string(),
+                ['^', k @ 'a'..='z'] => ((*k as u8 - 0x60) as char).to_string(),
                 ['A', '-', k] => format!("\x1b{}", k),
                 _ => key,
             }
