@@ -13,6 +13,11 @@ struct InputArgs {
 }
 
 #[derive(Debug, Deserialize)]
+struct SendKeysArgs {
+    keys: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
 struct ResizeArgs {
     cols: usize,
     rows: usize,
@@ -31,6 +36,12 @@ fn build_command(value: serde_json::Value) -> Result<Command, String> {
             Ok(Command::Input(args.payload))
         }
 
+        Some("sendKeys") => {
+            let args: SendKeysArgs = args_from_json_value(value)?;
+            let input = parse_keys(args.keys);
+            Ok(Command::Input(input))
+        }
+
         Some("resize") => {
             let args: ResizeArgs = args_from_json_value(value)?;
             Ok(Command::Resize(args.cols, args.rows))
@@ -40,6 +51,58 @@ fn build_command(value: serde_json::Value) -> Result<Command, String> {
 
         other => Err(format!("invalid command type: {other:?}")),
     }
+}
+
+fn parse_keys(keys: Vec<String>) -> String {
+    let keys: Vec<String> = keys.into_iter().map(parse_key).collect();
+
+    keys.join("")
+}
+
+fn parse_key(key: String) -> String {
+    let key = match key.as_str() {
+        "C-@" => "\x00",
+        "C-a" => "\x01",
+        "C-b" => "\x02",
+        "C-c" => "\x03",
+        "C-d" => "\x04",
+        "C-e" => "\x05",
+        "C-f" => "\x06",
+        "C-g" => "\x07",
+        "C-h" => "\x08",
+        "C-i" => "\x09",
+        "C-j" => "\x0a",
+        "C-k" => "\x0b",
+        "C-l" => "\x0c",
+        "C-m" => "\x0d",
+        "C-n" => "\x0e",
+        "C-o" => "\x0f",
+        "C-p" => "\x10",
+        "C-q" => "\x11",
+        "C-r" => "\x12",
+        "C-s" => "\x13",
+        "C-t" => "\x14",
+        "C-u" => "\x15",
+        "C-v" => "\x16",
+        "C-w" => "\x17",
+        "C-x" => "\x18",
+        "C-y" => "\x19",
+        "C-z" => "\x1a",
+        "C-[" => "\x1b",
+        "C-\\" => "\x1c",
+        "C-]" => "\x1d",
+        "C-^" => "\x1e",
+        "C--" => "\x1f",
+        "C-Space" => "\x00", // same as C-@
+        "Tab" => "\x09",     // same as C-i
+        "Enter" => "\x0d",   // same as C-m
+        "Escape" => "\x1b",  // same as C-[
+        "C-/" => "\x1e",     // same as C-^
+        "C-_" => "\x1f",     // same as C--
+        _ => &key,
+    };
+
+    key.to_owned()
 }
 
 fn args_from_json_value<T>(value: serde_json::Value) -> Result<T, String>
@@ -63,6 +126,45 @@ mod test {
     #[test]
     fn parse_input_missing_args() {
         parse(r#"{ "type": "input" }"#).expect_err("should fail");
+    }
+
+    #[test]
+    fn parse_send_keys() {
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["hello"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "hello"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["C-@"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x00"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["C-a"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x01"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["C-z"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1a"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["C-["] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["C-Space"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x00"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["Tab"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x09"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["Enter"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x0d"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["Escape"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b"));
+
+        let command =
+            parse(r#"{ "type": "sendKeys", "keys": ["hello", "Enter", "C-c"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "hello\x0d\x03"));
+    }
+
+    #[test]
+    fn parse_send_keys_missing_args() {
+        parse(r#"{ "type": "sendKeys" }"#).expect_err("should fail");
     }
 
     #[test]
