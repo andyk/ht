@@ -79,7 +79,7 @@ fn parse_key(key: String) -> String {
 
             match chars.as_slice() {
                 ['C', '-', k @ 'a'..='z'] => ((*k as u8 - 0x60) as char).to_string(),
-
+                ['A', '-', k] => format!("\x1b{}", k),
                 _ => key,
             }
         }
@@ -138,9 +138,28 @@ mod test {
         let command = parse(r#"{ "type": "sendKeys", "keys": ["Escape"] }"#).unwrap();
         assert!(matches!(command, Command::Input(input) if input == "\x1b"));
 
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["A-a"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1ba"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["A-A"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1bA"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["A-z"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1bz"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["A-Z"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1bZ"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["A-1"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b1"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["A-!"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b!"));
+
         let command =
-            parse(r#"{ "type": "sendKeys", "keys": ["hello", "Enter", "C-c"] }"#).unwrap();
-        assert!(matches!(command, Command::Input(input) if input == "hello\x0d\x03"));
+            parse(r#"{ "type": "sendKeys", "keys": ["hello", "Enter", "C-c", "A-^"] }"#).unwrap();
+
+        assert!(matches!(command, Command::Input(input) if input == "hello\x0d\x03\x1b^"));
     }
 
     #[test]
