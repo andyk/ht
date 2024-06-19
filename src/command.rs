@@ -60,46 +60,80 @@ fn parse_keys(keys: Vec<String>) -> String {
 }
 
 fn parse_key(key: String) -> String {
+    let mut s = String::new();
+
     match key.as_str() {
-        "C-@" | "C-Space" | "^@" => "\x00".to_owned(),
-        "C-[" | "Escape" | "^[" => "\x1b".to_owned(),
-        "C-\\" | "^\\" => "\x1c".to_owned(),
-        "C-]" | "^]" => "\x1d".to_owned(),
-        "C-^" | "C-/" => "\x1e".to_owned(),
-        "C--" | "C-_" => "\x1f".to_owned(),
-        "Tab" => "\x09".to_owned(),   // same as C-i
-        "Enter" => "\x0d".to_owned(), // same as C-m
-        "Left" => "\x1b[D".to_owned(),
-        "Right" => "\x1b[C".to_owned(),
-        "C-Left" => "\x1b[1;5D".to_owned(),
-        "C-Right" => "\x1b[1;5C".to_owned(),
-        "S-Left" => "\x1b[1;2D".to_owned(),
-        "S-Right" => "\x1b[1;2C".to_owned(),
-        "A-Left" => "\x1b[1;3D".to_owned(),
-        "A-Right" => "\x1b[1;3C".to_owned(),
-        "C-S-Left" | "S-C-Left" => "\x1b[1;6D".to_owned(),
-        "C-S-Right" | "S-C-Right" => "\x1b[1;6C".to_owned(),
-        "C-A-Left" | "A-C-Left" => "\x1b[1;7D".to_owned(),
-        "C-A-Right" | "A-C-Right" => "\x1b[1;7C".to_owned(),
-        "A-S-Left" | "S-A-Left" => "\x1b[1;4D".to_owned(),
-        "A-S-Right" | "S-A-Right" => "\x1b[1;4C".to_owned(),
+        "C-@" | "C-Space" | "^@" => "\x00",
+        "C-[" | "Escape" | "^[" => "\x1b",
+        "C-\\" | "^\\" => "\x1c",
+        "C-]" | "^]" => "\x1d",
+        "C-^" | "C-/" => "\x1e",
+        "C--" | "C-_" => "\x1f",
+        "Tab" => "\x09",   // same as C-i
+        "Enter" => "\x0d", // same as C-m
+        "Left" => "\x1b[D",
+        "Right" => "\x1b[C",
+        "Up" => "\x1b[A",
+        "Down" => "\x1b[B",
+        "C-Left" => "\x1b[1;5D",
+        "C-Right" => "\x1b[1;5C",
+        "S-Left" => "\x1b[1;2D",
+        "S-Right" => "\x1b[1;2C",
+        "C-Up" => "\x1b[1;5A",
+        "C-Down" => "\x1b[1;5B",
+        "S-Up" => "\x1b[1;2A",
+        "S-Down" => "\x1b[1;2B",
+        "A-Left" => "\x1b[1;3D",
+        "A-Right" => "\x1b[1;3C",
+        "A-Up" => "\x1b[1;3A",
+        "A-Down" => "\x1b[1;3B",
+        "C-S-Left" | "S-C-Left" => "\x1b[1;6D",
+        "C-S-Right" | "S-C-Right" => "\x1b[1;6C",
+        "C-S-Up" | "S-C-Up" => "\x1b[1;6A",
+        "C-S-Down" | "S-C-Down" => "\x1b[1;6B",
+        "C-A-Left" | "A-C-Left" => "\x1b[1;7D",
+        "C-A-Right" | "A-C-Right" => "\x1b[1;7C",
+        "C-A-Up" | "A-C-Up" => "\x1b[1;7A",
+        "C-A-Down" | "A-C-Down" => "\x1b[1;7B",
+        "A-S-Left" | "S-A-Left" => "\x1b[1;4D",
+        "A-S-Right" | "S-A-Right" => "\x1b[1;4C",
+        "A-S-Up" | "S-A-Up" => "\x1b[1;4A",
+        "A-S-Down" | "S-A-Down" => "\x1b[1;4B",
         "C-A-S-Left" | "C-S-A-Left" | "A-C-S-Left" | "S-C-A-Left" | "A-S-C-Left" | "S-A-C-Left" => {
-            "\x1b[1;8D".to_owned()
+            "\x1b[1;8D"
         }
         "C-A-S-Right" | "C-S-A-Right" | "A-C-S-Right" | "S-C-A-Right" | "A-S-C-Right"
-        | "S-A-C-Right" => "\x1b[1;8C".to_owned(),
+        | "S-A-C-Right" => "\x1b[1;8C",
+        "C-A-S-Up" | "C-S-A-Up" | "A-C-S-Up" | "S-C-A-Up" | "A-S-C-Up" | "S-A-C-Up" => "\x1b[1;8A",
+        "C-A-S-Down" | "C-S-A-Down" | "A-C-S-Down" | "S-C-A-Down" | "A-S-C-Down" | "S-A-C-Down" => {
+            "\x1b[1;8B"
+        }
 
         k => {
             let chars: Vec<char> = k.chars().collect();
 
             match chars.as_slice() {
-                ['C', '-', k @ 'a'..='z'] => ((*k as u8 - 0x60) as char).to_string(),
-                ['^', k @ 'a'..='z'] => ((*k as u8 - 0x60) as char).to_string(),
-                ['A', '-', k] => format!("\x1b{}", k),
-                _ => key,
+                ['C', '-', k @ 'a'..='z'] => {
+                    s.push((*k as u8 - 0x60) as char);
+                    &s
+                }
+
+                ['^', k @ 'a'..='z'] => {
+                    s.push((*k as u8 - 0x60) as char);
+                    &s
+                }
+
+                ['A', '-', k] => {
+                    s.push('\x1b');
+                    s.push(*k);
+                    &s
+                }
+
+                _ => &key,
             }
         }
     }
+    .to_owned()
 }
 
 fn args_from_json_value<T>(value: serde_json::Value) -> Result<T, String>
@@ -160,6 +194,12 @@ mod test {
         let command = parse(r#"{ "type": "sendKeys", "keys": ["Right"] }"#).unwrap();
         assert!(matches!(command, Command::Input(input) if input == "\x1b[C"));
 
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["Up"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b[A"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["Down"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b[B"));
+
         let command = parse(r#"{ "type": "sendKeys", "keys": ["C-Left"] }"#).unwrap();
         assert!(matches!(command, Command::Input(input) if input == "\x1b[1;5D"));
 
@@ -172,11 +212,17 @@ mod test {
         let command = parse(r#"{ "type": "sendKeys", "keys": ["S-Right"] }"#).unwrap();
         assert!(matches!(command, Command::Input(input) if input == "\x1b[1;2C"));
 
-        let command = parse(r#"{ "type": "sendKeys", "keys": ["C-S-Left"] }"#).unwrap();
-        assert!(matches!(command, Command::Input(input) if input == "\x1b[1;6D"));
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["C-Up"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b[1;5A"));
 
-        let command = parse(r#"{ "type": "sendKeys", "keys": ["C-S-Right"] }"#).unwrap();
-        assert!(matches!(command, Command::Input(input) if input == "\x1b[1;6C"));
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["C-Down"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b[1;5B"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["S-Up"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b[1;2A"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["S-Down"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b[1;2B"));
 
         let command = parse(r#"{ "type": "sendKeys", "keys": ["A-Left"] }"#).unwrap();
         assert!(matches!(command, Command::Input(input) if input == "\x1b[1;3D"));
@@ -184,11 +230,35 @@ mod test {
         let command = parse(r#"{ "type": "sendKeys", "keys": ["A-Right"] }"#).unwrap();
         assert!(matches!(command, Command::Input(input) if input == "\x1b[1;3C"));
 
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["A-Up"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b[1;3A"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["A-Down"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b[1;3B"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["C-S-Left"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b[1;6D"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["C-S-Right"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b[1;6C"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["C-S-Up"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b[1;6A"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["C-S-Down"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b[1;6B"));
+
         let command = parse(r#"{ "type": "sendKeys", "keys": ["C-A-Left"] }"#).unwrap();
         assert!(matches!(command, Command::Input(input) if input == "\x1b[1;7D"));
 
         let command = parse(r#"{ "type": "sendKeys", "keys": ["C-A-Right"] }"#).unwrap();
         assert!(matches!(command, Command::Input(input) if input == "\x1b[1;7C"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["C-A-Up"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b[1;7A"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["C-A-Down"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b[1;7B"));
 
         let command = parse(r#"{ "type": "sendKeys", "keys": ["S-A-Left"] }"#).unwrap();
         assert!(matches!(command, Command::Input(input) if input == "\x1b[1;4D"));
@@ -196,11 +266,23 @@ mod test {
         let command = parse(r#"{ "type": "sendKeys", "keys": ["S-A-Right"] }"#).unwrap();
         assert!(matches!(command, Command::Input(input) if input == "\x1b[1;4C"));
 
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["S-A-Up"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b[1;4A"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["S-A-Down"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b[1;4B"));
+
         let command = parse(r#"{ "type": "sendKeys", "keys": ["C-A-S-Left"] }"#).unwrap();
         assert!(matches!(command, Command::Input(input) if input == "\x1b[1;8D"));
 
         let command = parse(r#"{ "type": "sendKeys", "keys": ["C-A-S-Right"] }"#).unwrap();
         assert!(matches!(command, Command::Input(input) if input == "\x1b[1;8C"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["C-A-S-Up"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b[1;8A"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["C-A-S-Down"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b[1;8B"));
 
         let command = parse(r#"{ "type": "sendKeys", "keys": ["A-a"] }"#).unwrap();
         assert!(matches!(command, Command::Input(input) if input == "\x1ba"));
