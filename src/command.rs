@@ -118,8 +118,18 @@ fn parse_key(key: String) -> String {
                     &s
                 }
 
+                ['C', '-', k @ 'A'..='Z'] => {
+                    s.push((*k as u8 - 0x40) as char);
+                    &s
+                }
+
                 ['^', k @ 'a'..='z'] => {
                     s.push((*k as u8 - 0x60) as char);
+                    &s
+                }
+
+                ['^', k @ 'A'..='Z'] => {
+                    s.push((*k as u8 - 0x40) as char);
                     &s
                 }
 
@@ -170,7 +180,19 @@ mod test {
         let command = parse(r#"{ "type": "sendKeys", "keys": ["C-a"] }"#).unwrap();
         assert!(matches!(command, Command::Input(input) if input == "\x01"));
 
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["C-A"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x01"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["^a"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x01"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["^A"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x01"));
+
         let command = parse(r#"{ "type": "sendKeys", "keys": ["C-z"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1a"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["C-Z"] }"#).unwrap();
         assert!(matches!(command, Command::Input(input) if input == "\x1a"));
 
         let command = parse(r#"{ "type": "sendKeys", "keys": ["C-["] }"#).unwrap();
@@ -186,6 +208,9 @@ mod test {
         assert!(matches!(command, Command::Input(input) if input == "\x0d"));
 
         let command = parse(r#"{ "type": "sendKeys", "keys": ["Escape"] }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == "\x1b"));
+
+        let command = parse(r#"{ "type": "sendKeys", "keys": ["^["] }"#).unwrap();
         assert!(matches!(command, Command::Input(input) if input == "\x1b"));
 
         let command = parse(r#"{ "type": "sendKeys", "keys": ["Left"] }"#).unwrap();
