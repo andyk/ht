@@ -108,6 +108,22 @@ fn parse_key(key: String) -> String {
         "C-A-S-Down" | "C-S-A-Down" | "A-C-S-Down" | "S-C-A-Down" | "A-S-C-Down" | "S-A-C-Down" => {
             "\x1b[1;8B"
         }
+        "F1" => "\x1bOP",
+        "F2" => "\x1bOQ",
+        "F3" => "\x1bOR",
+        "F4" => "\x1bOS",
+        "F5" => "\x1b[15~",
+        "F6" => "\x1b[17~",
+        "F7" => "\x1b[18~",
+        "F8" => "\x1b[19~",
+        "F9" => "\x1b[20~",
+        "F10" => "\x1b[21~",
+        "F11" => "\x1b[23~",
+        "F12" => "\x1b[24~",
+        "Home" => "\x1bOH",
+        "End" => "\x1bOF",
+        "PageUp" => "\x1b[5~",
+        "PageDown" => "\x1b[6~",
 
         k => {
             let chars: Vec<char> = k.chars().collect();
@@ -171,7 +187,7 @@ mod test {
 
     #[test]
     fn parse_send_keys() {
-        let examples: &[[&str; 2]; 52] = &[
+        let examples = [
             ["hello", "hello"],
             ["C-@", "\x00"],
             ["C-a", "\x01"],
@@ -224,6 +240,22 @@ mod test {
             ["A-Z", "\x1bZ"],
             ["A-1", "\x1b1"],
             ["A-!", "\x1b!"],
+            ["F1", "\x1bOP"],
+            ["F2", "\x1bOQ"],
+            ["F3", "\x1bOR"],
+            ["F4", "\x1bOS"],
+            ["F5", "\x1b[15~"],
+            ["F6", "\x1b[17~"],
+            ["F7", "\x1b[18~"],
+            ["F8", "\x1b[19~"],
+            ["F9", "\x1b[20~"],
+            ["F10", "\x1b[21~"],
+            ["F11", "\x1b[23~"],
+            ["F12", "\x1b[24~"],
+            ["Home", "\x1bOH"], // or [H
+            ["End", "\x1bOF"],  // or [F
+            ["PageUp", "\x1b[5~"],
+            ["PageDown", "\x1b[6~"],
         ];
 
         for [key, chars] in examples {
