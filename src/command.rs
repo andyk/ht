@@ -69,8 +69,9 @@ fn parse_key(key: String) -> String {
         "C-]" | "^]" => "\x1d",
         "C-^" | "C-/" => "\x1e",
         "C--" | "C-_" => "\x1f",
-        "Tab" => "\x09",     // same as C-i
-        "Enter" => "\x0d",   // same as C-m
+        "Tab" => "\x09",   // same as C-i
+        "Enter" => "\x0d", // same as C-m
+        "Space" => " ",
         "Left" => "\x1b[D",  // TODO \x1bOD in application mode
         "Right" => "\x1b[C", // TODO \x1bOC in application mode
         "Up" => "\x1b[A",    // TODO \x1bOA in application mode
@@ -245,6 +246,7 @@ mod test {
             ["C-z", "\x1a"],
             ["C-Z", "\x1a"],
             ["C-[", "\x1b"],
+            ["Space", " "],
             ["C-Space", "\x00"],
             ["Tab", "\x09"],
             ["Enter", "\x0d"],
