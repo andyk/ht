@@ -86,7 +86,8 @@ terminal as if the keys were pressed on a keyboard.
 
 ```json
 { "type": "sendKeys", "keys": ["nano", "Enter"] }
-{ "type": "sendKeys", "keys": ["C-x", "n"] }
+{ "type": "sendKeys", "keys": ["hello", "Enter", "world"] }
+{ "type": "sendKeys", "keys": ["^x", "n"] }
 ```
 
 Each element of the `keys` array can be either a key name or an arbitrary text.
