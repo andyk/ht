@@ -114,6 +114,7 @@ The following key specifications are currently supported:
 
 Modifier keys are supported by prepending a key with one of the prefixes:
 
+- `^` - control - e.g. `^c` means <kbd>Ctrl</kbd> + <kbd>C</kbd>
 - `C-` - control - e.g. `C-c` means <kbd>Ctrl</kbd> + <kbd>C</kbd>
 - `S-` - shift - e.g. `S-F6` means <kbd>Shift</kbd> + <kbd>F6</kbd>
 - `A-` - alt/option - e.g. `A-Home` means <kbd>Alt</kbd> + <kbd>Home</kbd>
@@ -121,12 +122,9 @@ Modifier keys are supported by prepending a key with one of the prefixes:
 Modifiers can be combined (for arrow keys only at the moment), so combinations
 such as `S-A-Up` or `C-S-Left` are possible.
 
-Popular caret (`^`) notation for control key is supported. You can use `^`
-followed by an ASCII letter as an alternative for `C-` prefix. For example,
-`^c`, `^d`, `^l` are the same as `C-c`, `C-d`, `C-l`.
-
-Control modifier can be used for ASCII letters (both lower and upper case are
-supported) and most special key names.
+`C-` control modifier notation can be used with ASCII letters (both lower and
+upper case are supported) and most special key names. The caret control notation
+(`^`) may only be used with ASCII letters, not with special keys.
 
 Shift modifier can be used with special key names only, such as `Left`, `PageUp`
 etc. For text characters, instead of specifying e.g. `S-a` just use upper case
