@@ -69,12 +69,12 @@ fn parse_key(key: String) -> String {
         "C-]" | "^]" => "\x1d",
         "C-^" | "C-/" => "\x1e",
         "C--" | "C-_" => "\x1f",
-        "Tab" => "\x09",   // same as C-i
-        "Enter" => "\x0d", // same as C-m
-        "Left" => "\x1b[D",
-        "Right" => "\x1b[C",
-        "Up" => "\x1b[A",
-        "Down" => "\x1b[B",
+        "Tab" => "\x09",     // same as C-i
+        "Enter" => "\x0d",   // same as C-m
+        "Left" => "\x1b[D",  // TODO \x1bOD in application mode
+        "Right" => "\x1b[C", // TODO \x1bOC in application mode
+        "Up" => "\x1b[A",    // TODO \x1bOA in application mode
+        "Down" => "\x1b[B",  // TODO \x1bOB in application mode
         "C-Left" => "\x1b[1;5D",
         "C-Right" => "\x1b[1;5C",
         "S-Left" => "\x1b[1;2D",
@@ -156,10 +156,22 @@ fn parse_key(key: String) -> String {
         "A-F10" => "\x1b[21;3~",
         "A-F11" => "\x1b[23;3~",
         "A-F12" => "\x1b[24;3~",
-        "Home" => "\x1bOH", // or \x1b[H maybe?
-        "End" => "\x1bOF",  // or \x1b[F maybe?
+        "Home" => "\x1b[H", // TODO \x1bOH in application mode
+        "C-Home" => "\x1b[1;5H",
+        "S-Home" => "\x1b[1;2H",
+        "A-Home" => "\x1b[1;3H",
+        "End" => "\x1b[F", // TODO \x1bOF in application mode
+        "C-End" => "\x1b[1;5F",
+        "S-End" => "\x1b[1;2F",
+        "A-End" => "\x1b[1;3F",
         "PageUp" => "\x1b[5~",
+        "C-PageUp" => "\x1b[5;5~",
+        "S-PageUp" => "\x1b[5;2~",
+        "A-PageUp" => "\x1b[5;3~",
         "PageDown" => "\x1b[6~",
+        "C-PageDown" => "\x1b[6;5~",
+        "S-PageDown" => "\x1b[6;2~",
+        "A-PageDown" => "\x1b[6;3~",
 
         k => {
             let chars: Vec<char> = k.chars().collect();
@@ -324,10 +336,22 @@ mod test {
             ["A-F10", "\x1b[21;3~"],
             ["A-F11", "\x1b[23;3~"],
             ["A-F12", "\x1b[24;3~"],
-            ["Home", "\x1bOH"],
-            ["End", "\x1bOF"],
+            ["Home", "\x1b[H"],
+            ["C-Home", "\x1b[1;5H"],
+            ["S-Home", "\x1b[1;2H"],
+            ["A-Home", "\x1b[1;3H"],
+            ["End", "\x1b[F"],
+            ["C-End", "\x1b[1;5F"],
+            ["S-End", "\x1b[1;2F"],
+            ["A-End", "\x1b[1;3F"],
             ["PageUp", "\x1b[5~"],
+            ["C-PageUp", "\x1b[5;5~"],
+            ["S-PageUp", "\x1b[5;2~"],
+            ["A-PageUp", "\x1b[5;3~"],
             ["PageDown", "\x1b[6~"],
+            ["C-PageDown", "\x1b[6;5~"],
+            ["S-PageDown", "\x1b[6;2~"],
+            ["A-PageDown", "\x1b[6;3~"],
         ];
 
         for [key, chars] in examples {
