@@ -24,8 +24,8 @@ use std::{
 
 #[derive(Debug)]
 enum Message {
-    Command(Command),
     Output(String),
+    StdinInput(String),
     StdinClosed,
     ChildExited,
 }
@@ -104,10 +104,7 @@ where
 
 fn read_stdin(sender: mpsc::Sender<Message>) -> Result<()> {
     for line in io::stdin().lines() {
-        match command::parse(&line?) {
-            Ok(command) => sender.send(Message::Command(command))?,
-            Err(e) => eprintln!("command parse error: {e}"),
-        }
+        sender.send(Message::StdinInput(line?))?;
     }
 
     Ok(())
@@ -237,29 +234,33 @@ fn handle_pty(master_fd: RawFd, input_rx: OwnedFd, sender: mpsc::Sender<Message>
 fn process_messages(receiver: mpsc::Receiver<Message>, mut input: File, mut vt: avt::Vt) {
     for message in receiver {
         match message {
-            Message::Command(Command::Input(i)) => {
-                input.write_all(i.as_bytes()).unwrap();
-            }
-
-            Message::Command(Command::GetView) => {
-                let text = vt
-                    .lines()
-                    .iter()
-                    .map(|l| l.text())
-                    .collect::<Vec<_>>()
-                    .join("\n");
-
-                let resp = serde_json::json!({ "view": text });
-                println!("{}", serde_json::to_string(&resp).unwrap());
-            }
-
-            Message::Command(Command::Resize(cols, rows)) => {
-                vt.feed_str(&format!("\x1b[8;{};{}t", rows, cols));
-            }
-
             Message::Output(o) => {
                 vt.feed_str(&o);
             }
+
+            Message::StdinInput(line) => match command::parse(&line, vt.arrow_key_app_mode()) {
+                Ok(Command::Input(i)) => {
+                    input.write_all(i.as_bytes()).unwrap();
+                }
+
+                Ok(Command::GetView) => {
+                    let text = vt
+                        .lines()
+                        .iter()
+                        .map(|l| l.text())
+                        .collect::<Vec<_>>()
+                        .join("\n");
+
+                    let resp = serde_json::json!({ "view": text });
+                    println!("{}", serde_json::to_string(&resp).unwrap());
+                }
+
+                Ok(Command::Resize(cols, rows)) => {
+                    vt.feed_str(&format!("\x1b[8;{};{}t", rows, cols));
+                }
+
+                Err(e) => eprintln!("command parse error: {e}"),
+            },
 
             Message::StdinClosed => {
                 eprintln!("stdin closed, closing child process input");

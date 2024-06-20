@@ -79,16 +79,74 @@ ht sends responses (where applicable) to its stdout, as JSON-encoded objects.
 
 Diagnostic messages (notices, errors) are printed to stderr.
 
+### sendKeys
+
+`sendKeys` command allows sending keys to a process running in the virtual
+terminal as if the keys were pressed on a keyboard.
+
+```json
+{ "type": "sendKeys", "keys": ["nano", "Enter"] }
+{ "type": "sendKeys", "keys": ["hello", "Enter", "world"] }
+{ "type": "sendKeys", "keys": ["^x", "n"] }
+```
+
+Each element of the `keys` array can be either a key name or an arbitrary text.
+If a key is not matched by any supported key name then the text is sent to the
+process as is, i.e. like when using the `input` command.
+
+This command doesn't produce any output on stdout.
+
+The following key specifications are currently supported:
+
+- `Enter`
+- `Space`
+- `Escape` or `^[` or `C-[`
+- `Tab`
+- `Left` - left arrow key
+- `Right` - right arrow key
+- `Up` - up arrow key
+- `Down` - down arrow key
+- `Home`
+- `End`
+- `PageUp`
+- `PageDown`
+- `F1` to `F12`
+
+Modifier keys are supported by prepending a key with one of the prefixes:
+
+- `^` - control - e.g. `^c` means <kbd>Ctrl</kbd> + <kbd>C</kbd>
+- `C-` - control - e.g. `C-c` means <kbd>Ctrl</kbd> + <kbd>C</kbd>
+- `S-` - shift - e.g. `S-F6` means <kbd>Shift</kbd> + <kbd>F6</kbd>
+- `A-` - alt/option - e.g. `A-Home` means <kbd>Alt</kbd> + <kbd>Home</kbd>
+
+Modifiers can be combined (for arrow keys only at the moment), so combinations
+such as `S-A-Up` or `C-S-Left` are possible.
+
+`C-` control modifier notation can be used with ASCII letters (both lower and
+upper case are supported) and most special key names. The caret control notation
+(`^`) may only be used with ASCII letters, not with special keys.
+
+Shift modifier can be used with special key names only, such as `Left`, `PageUp`
+etc. For text characters, instead of specifying e.g. `S-a` just use upper case
+`A`.
+
+Alt modifier can be used with any Unicode character and most special key names.
+
 ### input
 
-`input` command allows sending arbitrary input to a process running in the
-virtual terminal as if the input was typed on a keyboard.
+`input` command allows sending arbitrary raw input to a process running in the
+virtual terminal.
 
 ```json
 { "type": "input", "payload": "ls\r" }
 ```
 
-To send control characters (e.g., ctrl-c), include in your input json the ascii control character that the keyboard combo would generate (e.g., \x03 for ctrl-c). So to send control-c to the terminal, send the following JSON message to ht:
+In most cases it's easier and recommended to use the `sendKeys` command instead.
+
+Use the `input` command if you don't want any special input processing, i.e. no
+mapping of key names to their respective control sequences.
+
+For example, to send Ctrl-C shortcut you must use `"\x03"` as the payload:
 
 ```json
 { "type": "input", "payload": "\x03" }
