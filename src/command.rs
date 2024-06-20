@@ -23,13 +23,13 @@ struct ResizeArgs {
     rows: usize,
 }
 
-pub fn parse(line: &str) -> Result<Command, String> {
+pub fn parse(line: &str, app_mode: bool) -> Result<Command, String> {
     serde_json::from_str::<serde_json::Value>(line)
         .map_err(|e| e.to_string())
-        .and_then(build_command)
+        .and_then(|v| build_command(v, app_mode))
 }
 
-fn build_command(value: serde_json::Value) -> Result<Command, String> {
+fn build_command(value: serde_json::Value, app_mode: bool) -> Result<Command, String> {
     match value["type"].as_str() {
         Some("input") => {
             let args: InputArgs = args_from_json_value(value)?;
@@ -38,7 +38,7 @@ fn build_command(value: serde_json::Value) -> Result<Command, String> {
 
         Some("sendKeys") => {
             let args: SendKeysArgs = args_from_json_value(value)?;
-            let input = parse_keys(args.keys);
+            let input = parse_keys(args.keys, app_mode);
             Ok(Command::Input(input))
         }
 
@@ -53,13 +53,13 @@ fn build_command(value: serde_json::Value) -> Result<Command, String> {
     }
 }
 
-fn parse_keys(keys: Vec<String>) -> String {
-    let keys: Vec<String> = keys.into_iter().map(parse_key).collect();
+fn parse_keys(keys: Vec<String>, app_mode: bool) -> String {
+    let keys: Vec<String> = keys.into_iter().map(|k| parse_key(k, app_mode)).collect();
 
     keys.join("")
 }
 
-fn parse_key(key: String) -> String {
+fn parse_key(key: String, app_mode: bool) -> String {
     let mut s = String::new();
 
     match key.as_str() {
@@ -72,10 +72,39 @@ fn parse_key(key: String) -> String {
         "Tab" => "\x09",   // same as C-i
         "Enter" => "\x0d", // same as C-m
         "Space" => " ",
-        "Left" => "\x1b[D",  // TODO \x1bOD in application mode
-        "Right" => "\x1b[C", // TODO \x1bOC in application mode
-        "Up" => "\x1b[A",    // TODO \x1bOA in application mode
-        "Down" => "\x1b[B",  // TODO \x1bOB in application mode
+
+        "Left" => {
+            if app_mode {
+                "\x1bOD"
+            } else {
+                "\x1b[D"
+            }
+        }
+
+        "Right" => {
+            if app_mode {
+                "\x1bOC"
+            } else {
+                "\x1b[C"
+            }
+        }
+
+        "Up" => {
+            if app_mode {
+                "\x1bOA"
+            } else {
+                "\x1b[A"
+            }
+        }
+
+        "Down" => {
+            if app_mode {
+                "\x1bOB"
+            } else {
+                "\x1b[B"
+            }
+        }
+
         "C-Left" => "\x1b[1;5D",
         "C-Right" => "\x1b[1;5C",
         "S-Left" => "\x1b[1;2D",
@@ -157,11 +186,27 @@ fn parse_key(key: String) -> String {
         "A-F10" => "\x1b[21;3~",
         "A-F11" => "\x1b[23;3~",
         "A-F12" => "\x1b[24;3~",
-        "Home" => "\x1b[H", // TODO \x1bOH in application mode
+
+        "Home" => {
+            if app_mode {
+                "\x1bOH"
+            } else {
+                "\x1b[H"
+            }
+        }
+
         "C-Home" => "\x1b[1;5H",
         "S-Home" => "\x1b[1;2H",
         "A-Home" => "\x1b[1;3H",
-        "End" => "\x1b[F", // TODO \x1bOF in application mode
+
+        "End" => {
+            if app_mode {
+                "\x1bOF"
+            } else {
+                "\x1b[F"
+            }
+        }
+
         "C-End" => "\x1b[1;5F",
         "S-End" => "\x1b[1;2F",
         "A-End" => "\x1b[1;3F",
@@ -225,13 +270,13 @@ mod test {
 
     #[test]
     fn parse_input() {
-        let command = parse(r#"{ "type": "input", "payload": "hello" }"#).unwrap();
+        let command = parse(r#"{ "type": "input", "payload": "hello" }"#, false).unwrap();
         assert!(matches!(command, Command::Input(input) if input == "hello"));
     }
 
     #[test]
     fn parse_input_missing_args() {
-        parse(r#"{ "type": "input" }"#).expect_err("should fail");
+        parse(r#"{ "type": "input" }"#, false).expect_err("should fail");
     }
 
     #[test]
@@ -357,44 +402,70 @@ mod test {
         ];
 
         for [key, chars] in examples {
-            let command = parse(&format!(
-                "{{ \"type\": \"sendKeys\", \"keys\": [\"{key}\"] }}"
-            ))
+            let command = parse(
+                &format!("{{ \"type\": \"sendKeys\", \"keys\": [\"{key}\"] }}"),
+                false,
+            )
             .unwrap();
 
             assert!(matches!(command, Command::Input(input) if input == *chars));
         }
 
-        let command =
-            parse(r#"{ "type": "sendKeys", "keys": ["hello", "Enter", "C-c", "A-^"] }"#).unwrap();
+        let command = parse(
+            r#"{ "type": "sendKeys", "keys": ["hello", "Enter", "C-c", "A-^"] }"#,
+            false,
+        )
+        .unwrap();
 
         assert!(matches!(command, Command::Input(input) if input == "hello\x0d\x03\x1b^"));
     }
 
     #[test]
+    fn parse_send_keys_when_arrow_keys_in_app_mode() {
+        let examples = [
+            ["Left", "\x1bOD"],
+            ["Right", "\x1bOC"],
+            ["Up", "\x1bOA"],
+            ["Down", "\x1bOB"],
+            ["Home", "\x1bOH"],
+            ["End", "\x1bOF"],
+        ];
+
+        for [key, chars] in examples {
+            let command = parse(
+                &format!("{{ \"type\": \"sendKeys\", \"keys\": [\"{key}\"] }}"),
+                true,
+            )
+            .unwrap();
+
+            assert!(matches!(command, Command::Input(input) if input == *chars));
+        }
+    }
+
+    #[test]
     fn parse_send_keys_missing_args() {
-        parse(r#"{ "type": "sendKeys" }"#).expect_err("should fail");
+        parse(r#"{ "type": "sendKeys" }"#, false).expect_err("should fail");
     }
 
     #[test]
     fn parse_resize() {
-        let command = parse(r#"{ "type": "resize", "cols": 80, "rows": 24 }"#).unwrap();
+        let command = parse(r#"{ "type": "resize", "cols": 80, "rows": 24 }"#, false).unwrap();
         assert!(matches!(command, Command::Resize(80, 24)));
     }
 
     #[test]
     fn parse_resize_missing_args() {
-        parse(r#"{ "type": "resize" }"#).expect_err("should fail");
+        parse(r#"{ "type": "resize" }"#, false).expect_err("should fail");
     }
 
     #[test]
     fn parse_get_view() {
-        let command = parse(r#"{ "type": "getView" }"#).unwrap();
+        let command = parse(r#"{ "type": "getView" }"#, false).unwrap();
         assert!(matches!(command, Command::GetView));
     }
 
     #[test]
     fn parse_invalid_json() {
-        parse("{").expect_err("should fail");
+        parse("{", false).expect_err("should fail");
     }
 }
