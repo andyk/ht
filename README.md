@@ -96,6 +96,9 @@ process as is, i.e. like when using the `input` command.
 
 This command doesn't produce any output on stdout.
 
+The key and modifier specifications were inspired by
+[tmux](https://github.com/tmux/tmux/wiki/Modifier-Keys).
+
 The following key specifications are currently supported:
 
 - `Enter`
