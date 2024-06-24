@@ -421,7 +421,7 @@ mod test {
     }
 
     #[test]
-    fn parse_send_keys_when_arrow_keys_in_app_mode() {
+    fn parse_cursor_keys_in_app_mode() {
         let examples = [
             ["Left", "\x1bOD"],
             ["Right", "\x1bOC"],
