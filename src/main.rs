@@ -47,7 +47,11 @@ async fn event_loop(
             result = output_rx.recv() => {
                 match result {
                     Some(data) => { vt.feed_bytes(&data); },
-                    None => break
+
+                    None => {
+                        eprintln!("process exited, shutting down...");
+                        break;
+                    }
                 }
             }
 
@@ -67,11 +71,17 @@ async fn event_loop(
                         vt.resize(cols, rows);
                     }
 
-                    None => break
+                    None => {
+                        eprintln!("stdin closed, shutting down...");
+                        break;
+                    }
                 }
             }
 
-            _ = &mut api => break
+            _ = &mut api => {
+                eprintln!("stdin closed, shutting down...");
+                break;
+            }
         }
     }
 
