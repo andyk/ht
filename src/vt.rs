@@ -25,6 +25,10 @@ impl Vt {
     pub fn resize(&mut self, cols: usize, rows: usize) {
         self.vt.feed_str(&resize_seq(cols, rows));
     }
+
+    pub fn cursor_key_app_mode(&self) -> bool {
+        self.vt.arrow_key_app_mode()
+    }
 }
 
 fn resize_seq(cols: usize, rows: usize) -> String {

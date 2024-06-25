@@ -2,9 +2,15 @@ use serde::{de::DeserializeOwned, Deserialize};
 
 #[derive(Debug)]
 pub enum Command {
-    Input(String),
+    Input(Vec<InputSeq>),
     GetView,
     Resize(usize, usize),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum InputSeq {
+    Standard(String),
+    Cursor(String, String),
 }
 
 #[derive(Debug, Deserialize)]
@@ -23,23 +29,23 @@ struct ResizeArgs {
     rows: usize,
 }
 
-pub fn parse(line: &str, app_mode: bool) -> Result<Command, String> {
+pub fn parse(line: &str) -> Result<Command, String> {
     serde_json::from_str::<serde_json::Value>(line)
         .map_err(|e| e.to_string())
-        .and_then(|v| build_command(v, app_mode))
+        .and_then(build_command)
 }
 
-fn build_command(value: serde_json::Value, app_mode: bool) -> Result<Command, String> {
+fn build_command(value: serde_json::Value) -> Result<Command, String> {
     match value["type"].as_str() {
         Some("input") => {
             let args: InputArgs = args_from_json_value(value)?;
-            Ok(Command::Input(args.payload))
+            Ok(Command::Input(vec![standard_key(args.payload)]))
         }
 
         Some("sendKeys") => {
             let args: SendKeysArgs = args_from_json_value(value)?;
-            let input = parse_keys(args.keys, app_mode);
-            Ok(Command::Input(input))
+            let seqs = args.keys.into_iter().map(parse_key).collect();
+            Ok(Command::Input(seqs))
         }
 
         Some("resize") => {
@@ -53,16 +59,16 @@ fn build_command(value: serde_json::Value, app_mode: bool) -> Result<Command, St
     }
 }
 
-fn parse_keys(keys: Vec<String>, app_mode: bool) -> String {
-    let keys: Vec<String> = keys.into_iter().map(|k| parse_key(k, app_mode)).collect();
-
-    keys.join("")
+fn standard_key<S: ToString>(seq: S) -> InputSeq {
+    InputSeq::Standard(seq.to_string())
 }
 
-fn parse_key(key: String, app_mode: bool) -> String {
-    let mut s = String::new();
+fn cursor_key<S: ToString>(seq1: S, seq2: S) -> InputSeq {
+    InputSeq::Cursor(seq1.to_string(), seq2.to_string())
+}
 
-    match key.as_str() {
+fn parse_key(key: String) -> InputSeq {
+    let seq = match key.as_str() {
         "C-@" | "C-Space" | "^@" => "\x00",
         "C-[" | "Escape" | "^[" => "\x1b",
         "C-\\" | "^\\" => "\x1c",
@@ -72,39 +78,10 @@ fn parse_key(key: String, app_mode: bool) -> String {
         "Tab" => "\x09",   // same as C-i
         "Enter" => "\x0d", // same as C-m
         "Space" => " ",
-
-        "Left" => {
-            if app_mode {
-                "\x1bOD"
-            } else {
-                "\x1b[D"
-            }
-        }
-
-        "Right" => {
-            if app_mode {
-                "\x1bOC"
-            } else {
-                "\x1b[C"
-            }
-        }
-
-        "Up" => {
-            if app_mode {
-                "\x1bOA"
-            } else {
-                "\x1b[A"
-            }
-        }
-
-        "Down" => {
-            if app_mode {
-                "\x1bOB"
-            } else {
-                "\x1b[B"
-            }
-        }
-
+        "Left" => return cursor_key("\x1b[D", "\x1bOD"),
+        "Right" => return cursor_key("\x1b[C", "\x1bOC"),
+        "Up" => return cursor_key("\x1b[A", "\x1bOA"),
+        "Down" => return cursor_key("\x1b[B", "\x1bOB"),
         "C-Left" => "\x1b[1;5D",
         "C-Right" => "\x1b[1;5C",
         "S-Left" => "\x1b[1;2D",
@@ -186,27 +163,11 @@ fn parse_key(key: String, app_mode: bool) -> String {
         "A-F10" => "\x1b[21;3~",
         "A-F11" => "\x1b[23;3~",
         "A-F12" => "\x1b[24;3~",
-
-        "Home" => {
-            if app_mode {
-                "\x1bOH"
-            } else {
-                "\x1b[H"
-            }
-        }
-
+        "Home" => return cursor_key("\x1b[H", "\x1bOH"),
         "C-Home" => "\x1b[1;5H",
         "S-Home" => "\x1b[1;2H",
         "A-Home" => "\x1b[1;3H",
-
-        "End" => {
-            if app_mode {
-                "\x1bOF"
-            } else {
-                "\x1b[F"
-            }
-        }
-
+        "End" => return cursor_key("\x1b[F", "\x1bOF"),
         "C-End" => "\x1b[1;5F",
         "S-End" => "\x1b[1;2F",
         "A-End" => "\x1b[1;3F",
@@ -224,36 +185,49 @@ fn parse_key(key: String, app_mode: bool) -> String {
 
             match chars.as_slice() {
                 ['C', '-', k @ 'a'..='z'] => {
-                    s.push((*k as u8 - 0x60) as char);
-                    &s
+                    return standard_key((*k as u8 - 0x60) as char);
                 }
 
                 ['C', '-', k @ 'A'..='Z'] => {
-                    s.push((*k as u8 - 0x40) as char);
-                    &s
+                    return standard_key((*k as u8 - 0x40) as char);
                 }
 
                 ['^', k @ 'a'..='z'] => {
-                    s.push((*k as u8 - 0x60) as char);
-                    &s
+                    return standard_key((*k as u8 - 0x60) as char);
                 }
 
                 ['^', k @ 'A'..='Z'] => {
-                    s.push((*k as u8 - 0x40) as char);
-                    &s
+                    return standard_key((*k as u8 - 0x40) as char);
                 }
 
                 ['A', '-', k] => {
-                    s.push('\x1b');
-                    s.push(*k);
-                    &s
+                    return standard_key(format!("\x1b{}", k));
                 }
 
                 _ => &key,
             }
         }
+    };
+
+    standard_key(seq)
+}
+
+pub fn seqs_to_bytes(seqs: &[InputSeq], app_mode: bool) -> Vec<u8> {
+    let mut bytes = Vec::new();
+
+    for seq in seqs {
+        bytes.extend_from_slice(seq_as_bytes(seq, app_mode));
     }
-    .to_owned()
+
+    bytes
+}
+
+fn seq_as_bytes(seq: &InputSeq, app_mode: bool) -> &[u8] {
+    match (seq, app_mode) {
+        (InputSeq::Standard(seq), _) => seq.as_bytes(),
+        (InputSeq::Cursor(seq1, _seq2), false) => seq1.as_bytes(),
+        (InputSeq::Cursor(_seq1, seq2), true) => seq2.as_bytes(),
+    }
 }
 
 fn args_from_json_value<T>(value: serde_json::Value) -> Result<T, String>
@@ -265,18 +239,18 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::parse;
-    use super::Command;
+    use super::{cursor_key, parse, standard_key, Command};
+    use crate::command::InputSeq;
 
     #[test]
     fn parse_input() {
-        let command = parse(r#"{ "type": "input", "payload": "hello" }"#, false).unwrap();
-        assert!(matches!(command, Command::Input(input) if input == "hello"));
+        let command = parse(r#"{ "type": "input", "payload": "hello" }"#).unwrap();
+        assert!(matches!(command, Command::Input(input) if input == vec![standard_key("hello")]));
     }
 
     #[test]
     fn parse_input_missing_args() {
-        parse(r#"{ "type": "input" }"#, false).expect_err("should fail");
+        parse(r#"{ "type": "input" }"#).expect_err("should fail");
     }
 
     #[test]
@@ -297,10 +271,6 @@ mod test {
             ["Enter", "\x0d"],
             ["Escape", "\x1b"],
             ["^[", "\x1b"],
-            ["Left", "\x1b[D"],
-            ["Right", "\x1b[C"],
-            ["Up", "\x1b[A"],
-            ["Down", "\x1b[B"],
             ["C-Left", "\x1b[1;5D"],
             ["C-Right", "\x1b[1;5C"],
             ["S-Left", "\x1b[1;2D"],
@@ -383,11 +353,9 @@ mod test {
             ["A-F10", "\x1b[21;3~"],
             ["A-F11", "\x1b[23;3~"],
             ["A-F12", "\x1b[24;3~"],
-            ["Home", "\x1b[H"],
             ["C-Home", "\x1b[1;5H"],
             ["S-Home", "\x1b[1;2H"],
             ["A-Home", "\x1b[1;3H"],
-            ["End", "\x1b[F"],
             ["C-End", "\x1b[1;5F"],
             ["S-End", "\x1b[1;2F"],
             ["A-End", "\x1b[1;3F"],
@@ -402,70 +370,78 @@ mod test {
         ];
 
         for [key, chars] in examples {
-            let command = parse(
-                &format!("{{ \"type\": \"sendKeys\", \"keys\": [\"{key}\"] }}"),
-                false,
-            )
+            let command = parse(&format!(
+                "{{ \"type\": \"sendKeys\", \"keys\": [\"{key}\"] }}"
+            ))
             .unwrap();
 
-            assert!(matches!(command, Command::Input(input) if input == *chars));
+            assert!(matches!(command, Command::Input(input) if input == vec![standard_key(chars)]));
         }
 
-        let command = parse(
-            r#"{ "type": "sendKeys", "keys": ["hello", "Enter", "C-c", "A-^"] }"#,
-            false,
-        )
-        .unwrap();
+        let command =
+            parse(r#"{ "type": "sendKeys", "keys": ["hello", "Enter", "C-c", "A-^", "Left"] }"#)
+                .unwrap();
 
-        assert!(matches!(command, Command::Input(input) if input == "hello\x0d\x03\x1b^"));
+        assert!(
+            matches!(command, Command::Input(input) if input == vec![standard_key("hello"), standard_key("\x0d"), standard_key("\x03"), standard_key("\x1b^"), cursor_key("\x1b[D", "\x1bOD")])
+        );
     }
 
     #[test]
-    fn parse_cursor_keys_in_app_mode() {
+    fn parse_cursor_keys() {
         let examples = [
-            ["Left", "\x1bOD"],
-            ["Right", "\x1bOC"],
-            ["Up", "\x1bOA"],
-            ["Down", "\x1bOB"],
-            ["Home", "\x1bOH"],
-            ["End", "\x1bOF"],
+            ["Left", "\x1b[D", "\x1bOD"],
+            ["Right", "\x1b[C", "\x1bOC"],
+            ["Up", "\x1b[A", "\x1bOA"],
+            ["Down", "\x1b[B", "\x1bOB"],
+            ["Home", "\x1b[H", "\x1bOH"],
+            ["End", "\x1b[F", "\x1bOF"],
         ];
 
-        for [key, chars] in examples {
-            let command = parse(
-                &format!("{{ \"type\": \"sendKeys\", \"keys\": [\"{key}\"] }}"),
-                true,
-            )
+        for [key, seq1, seq2] in examples {
+            let command = parse(&format!(
+                "{{ \"type\": \"sendKeys\", \"keys\": [\"{key}\"] }}"
+            ))
             .unwrap();
 
-            assert!(matches!(command, Command::Input(input) if input == *chars));
+            if let Command::Input(seqs) = command {
+                if let InputSeq::Cursor(seq3, seq4) = &seqs[0] {
+                    if seq1 == seq3 && seq2 == seq4 {
+                        continue;
+                    }
+
+                    panic!("expected {:?} {:?}, got {:?} {:?}", seq1, seq2, seq3, seq4);
+                }
+            }
+
+            panic!("expected {:?} {:?}", seq1, seq2);
         }
     }
 
     #[test]
     fn parse_send_keys_missing_args() {
-        parse(r#"{ "type": "sendKeys" }"#, false).expect_err("should fail");
+        parse(r#"{ "type": "sendKeys" }"#).expect_err("should fail");
     }
 
     #[test]
     fn parse_resize() {
-        let command = parse(r#"{ "type": "resize", "cols": 80, "rows": 24 }"#, false).unwrap();
+        let command = parse(r#"{ "type": "resize", "cols": 80, "rows": 24 }"#).unwrap();
         assert!(matches!(command, Command::Resize(80, 24)));
     }
 
     #[test]
     fn parse_resize_missing_args() {
-        parse(r#"{ "type": "resize" }"#, false).expect_err("should fail");
+        parse(r#"{ "type": "resize" }"#).expect_err("should fail");
     }
 
     #[test]
     fn parse_get_view() {
-        let command = parse(r#"{ "type": "getView" }"#, false).unwrap();
+        let command = parse(r#"{ "type": "getView" }"#).unwrap();
         assert!(matches!(command, Command::GetView));
     }
 
     #[test]
     fn parse_invalid_json() {
-        parse("{", false).expect_err("should fail");
+        parse("{").expect_err("should fail");
     }
 }

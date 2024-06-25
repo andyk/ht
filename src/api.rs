@@ -9,7 +9,7 @@ pub async fn start(command_tx: mpsc::Sender<command::Command>) -> Result<()> {
     thread::spawn(|| read_stdin(input_tx));
 
     while let Some(line) = input_rx.recv().await {
-        match command::parse(&line, true) {
+        match command::parse(&line) {
             Ok(command) => command_tx.send(command).await?,
             Err(e) => eprintln!("command parse error: {e}"),
         }

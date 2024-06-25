@@ -53,8 +53,9 @@ async fn event_loop(
 
             command = command_rx.recv() => {
                 match command {
-                    Some(Command::Input(data)) => {
-                        input_tx.send(data.as_bytes().to_vec()).await?;
+                    Some(Command::Input(seqs)) => {
+                        let data = command::seqs_to_bytes(&seqs, vt.cursor_key_app_mode());
+                        input_tx.send(data).await?;
                     }
 
                     Some(Command::GetView) => {
