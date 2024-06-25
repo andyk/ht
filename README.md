@@ -206,7 +206,6 @@ TODO: either pull those into this repo or fork them into their own `htlib` repo.
 
 ## Possible future work
 
-* support higher-level "keyboard like" input in the `input` command, e.g. parse any string in the form of "<ctrl+d>" and automatically turn it into 0x04 before sending it to the process.
 * update the interface to return the view with additional color and style information (text color, background, bold/italic/etc) also in a simple JSON format (so no dealing with color-related escape sequence either), and the frontend could render this using HTML (e.g. with styled pre/span tags, similar to how asciinema-player does it) or with SVG.
 * support subscribing to view updates, to avoid needing to poll (see [issue #9](https://github.com/andyk/ht/issues/9))
 * native integration with asciinema for recording terminal sessions (see [issue #8](https://github.com/andyk/ht/issues/8))
