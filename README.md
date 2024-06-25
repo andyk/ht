@@ -149,10 +149,11 @@ In most cases it's easier and recommended to use the `sendKeys` command instead.
 Use the `input` command if you don't want any special input processing, i.e. no
 mapping of key names to their respective control sequences.
 
-For example, to send Ctrl-C shortcut you must use `"\x03"` as the payload:
+For example, to send Ctrl-C shortcut you must use `"\u0003"` (0x03) as the
+payload:
 
 ```json
-{ "type": "input", "payload": "\x03" }
+{ "type": "input", "payload": "\u0003" }
 ```
 
 This command doesn't produce any output on stdout.
