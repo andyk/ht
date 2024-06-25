@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use serde::{de::DeserializeOwned, Deserialize};
 
 #[derive(Debug)]
@@ -29,10 +31,14 @@ struct ResizeArgs {
     rows: usize,
 }
 
-pub fn parse(line: &str) -> Result<Command, String> {
-    serde_json::from_str::<serde_json::Value>(line)
-        .map_err(|e| e.to_string())
-        .and_then(build_command)
+impl FromStr for Command {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        serde_json::from_str::<serde_json::Value>(s)
+            .map_err(|e| e.to_string())
+            .and_then(build_command)
+    }
 }
 
 fn build_command(value: serde_json::Value) -> Result<Command, String> {
@@ -239,18 +245,18 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::{cursor_key, parse, standard_key, Command};
+    use super::{cursor_key, standard_key, Command};
     use crate::command::InputSeq;
 
     #[test]
     fn parse_input() {
-        let command = parse(r#"{ "type": "input", "payload": "hello" }"#).unwrap();
+        let command: Command = r#"{ "type": "input", "payload": "hello" }"#.parse().unwrap();
         assert!(matches!(command, Command::Input(input) if input == vec![standard_key("hello")]));
     }
 
     #[test]
     fn parse_input_missing_args() {
-        parse(r#"{ "type": "input" }"#).expect_err("should fail");
+        r#"{ "type": "input" }"#.parse::<Command>().expect_err("should fail");
     }
 
     #[test]
@@ -370,16 +376,16 @@ mod test {
         ];
 
         for [key, chars] in examples {
-            let command = parse(&format!(
-                "{{ \"type\": \"sendKeys\", \"keys\": [\"{key}\"] }}"
-            ))
-            .unwrap();
+            let command: Command = format!("{{ \"type\": \"sendKeys\", \"keys\": [\"{key}\"] }}")
+                .parse()
+                .unwrap();
 
             assert!(matches!(command, Command::Input(input) if input == vec![standard_key(chars)]));
         }
 
-        let command =
-            parse(r#"{ "type": "sendKeys", "keys": ["hello", "Enter", "C-c", "A-^", "Left"] }"#)
+        let command: Command =
+            r#"{ "type": "sendKeys", "keys": ["hello", "Enter", "C-c", "A-^", "Left"] }"#
+                .parse()
                 .unwrap();
 
         assert!(
@@ -399,10 +405,9 @@ mod test {
         ];
 
         for [key, seq1, seq2] in examples {
-            let command = parse(&format!(
-                "{{ \"type\": \"sendKeys\", \"keys\": [\"{key}\"] }}"
-            ))
-            .unwrap();
+            let command: Command = format!("{{ \"type\": \"sendKeys\", \"keys\": [\"{key}\"] }}")
+                .parse()
+                .unwrap();
 
             if let Command::Input(seqs) = command {
                 if let InputSeq::Cursor(seq3, seq4) = &seqs[0] {
@@ -420,28 +425,28 @@ mod test {
 
     #[test]
     fn parse_send_keys_missing_args() {
-        parse(r#"{ "type": "sendKeys" }"#).expect_err("should fail");
+        r#"{ "type": "sendKeys" }"#.parse::<Command>().expect_err("should fail");
     }
 
     #[test]
     fn parse_resize() {
-        let command = parse(r#"{ "type": "resize", "cols": 80, "rows": 24 }"#).unwrap();
+        let command: Command = r#"{ "type": "resize", "cols": 80, "rows": 24 }"#.parse().unwrap();
         assert!(matches!(command, Command::Resize(80, 24)));
     }
 
     #[test]
     fn parse_resize_missing_args() {
-        parse(r#"{ "type": "resize" }"#).expect_err("should fail");
+        r#"{ "type": "resize" }"#.parse::<Command>().expect_err("should fail");
     }
 
     #[test]
     fn parse_get_view() {
-        let command = parse(r#"{ "type": "getView" }"#).unwrap();
+        let command: Command = r#"{ "type": "getView" }"#.parse().unwrap();
         assert!(matches!(command, Command::GetView));
     }
 
     #[test]
     fn parse_invalid_json() {
-        parse("{").expect_err("should fail");
+        "{".parse::<Command>().expect_err("should fail");
     }
 }
