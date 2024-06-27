@@ -1,7 +1,7 @@
 use anyhow::bail;
 use clap::Parser;
 use nix::pty;
-use std::{fmt::Display, ops::Deref, str::FromStr};
+use std::{fmt::Display, net::SocketAddr, ops::Deref, str::FromStr};
 
 #[derive(Debug, Parser)]
 #[clap(version, about)]
@@ -14,6 +14,10 @@ pub struct Cli {
     /// Command to run inside the terminal
     #[arg(default_value = "bash")]
     pub command: Vec<String>,
+
+    /// Enable HTTP server
+    #[arg(short, long, default_missing_value = "127.0.0.1:0", num_args = 0..=1)]
+    pub listen_addr: Option<SocketAddr>,
 }
 
 impl Cli {

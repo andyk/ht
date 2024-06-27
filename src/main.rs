@@ -6,38 +6,61 @@ mod nbio;
 mod pty;
 mod server;
 mod vt;
-
-use anyhow::Result;
+use anyhow::{Context, Result};
 use command::Command;
+use std::net::{SocketAddr, TcpListener};
 use tokio::{sync::mpsc, task::JoinHandle};
 use vt::Vt;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     locale::check_utf8_locale()?;
-
     let cli = cli::Cli::new();
-    let command = cli.command.join(" ");
 
-    eprintln!(
-        "launching command \"{command}\" in terminal of size {}",
-        cli.size
-    );
-
-    let vt = Vt::new(cli.size.cols(), cli.size.rows());
     let (input_tx, input_rx) = mpsc::channel(1024);
     let (output_tx, output_rx) = mpsc::channel(1024);
     let (command_tx, command_rx) = mpsc::channel(1024);
-    let pty_handle = tokio::spawn(pty::spawn(command, &cli.size, input_rx, output_tx)?);
-    let api_handle = tokio::spawn(api::start(command_tx));
-    let _server_handle = tokio::spawn(server::start().await?);
-    event_loop(output_rx, input_tx, command_rx, vt, api_handle).await?;
-    pty_handle.await??;
+
+    start_http_server(cli.listen_addr).await?;
+    let api = start_api(command_tx);
+    let pty = start_pty(cli.command, &cli.size, input_rx, output_tx)?;
+    let vt = build_vt(&cli.size);
+    run_event_loop(output_rx, input_tx, command_rx, vt, api).await?;
+    pty.await?
+}
+
+fn build_vt(size: &cli::Size) -> vt::Vt {
+    Vt::new(size.cols(), size.rows())
+}
+
+fn start_api(command_tx: mpsc::Sender<Command>) -> JoinHandle<Result<()>> {
+    tokio::spawn(api::start(command_tx))
+}
+
+fn start_pty(
+    command: Vec<String>,
+    size: &cli::Size,
+    input_rx: mpsc::Receiver<Vec<u8>>,
+    output_tx: mpsc::Sender<Vec<u8>>,
+) -> Result<JoinHandle<Result<()>>> {
+    let command = command.join(" ");
+    eprintln!("launching \"{}\" in terminal of size {}", command, size);
+
+    Ok(tokio::spawn(pty::spawn(
+        command, size, input_rx, output_tx,
+    )?))
+}
+
+async fn start_http_server(listen_addr: Option<SocketAddr>) -> Result<()> {
+    if let Some(addr) = listen_addr {
+        let listener = TcpListener::bind(addr).context("cannot start HTTP listener")?;
+        let _ = tokio::spawn(server::start(listener).await?);
+    }
 
     Ok(())
 }
 
-async fn event_loop(
+async fn run_event_loop(
     mut output_rx: mpsc::Receiver<Vec<u8>>,
     input_tx: mpsc::Sender<Vec<u8>>,
     mut command_rx: mpsc::Receiver<Command>,
