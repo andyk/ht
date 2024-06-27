@@ -6,9 +6,10 @@ mod nbio;
 mod pty;
 mod server;
 mod vt;
+
 use anyhow::Result;
 use command::Command;
-use tokio::sync::mpsc;
+use tokio::{sync::mpsc, task::JoinHandle};
 use vt::Vt;
 
 #[tokio::main]
@@ -23,25 +24,26 @@ async fn main() -> Result<()> {
         cli.size
     );
 
+    let vt = Vt::new(cli.size.cols(), cli.size.rows());
     let (input_tx, input_rx) = mpsc::channel(1024);
     let (output_tx, output_rx) = mpsc::channel(1024);
-    let handle = tokio::spawn(pty::spawn(command, &cli.size, input_rx, output_tx)?);
-    let vt = Vt::new(cli.size.cols(), cli.size.rows());
-    event_loop(output_rx, input_tx, vt).await?;
-    handle.await??;
+    let (command_tx, command_rx) = mpsc::channel(1024);
+    let pty_handle = tokio::spawn(pty::spawn(command, &cli.size, input_rx, output_tx)?);
+    let api_handle = tokio::spawn(api::start(command_tx));
+    let _server_handle = tokio::spawn(server::start().await?);
+    event_loop(output_rx, input_tx, command_rx, vt, api_handle).await?;
+    pty_handle.await??;
 
     Ok(())
 }
 
 async fn event_loop(
-    mut output_rx: tokio::sync::mpsc::Receiver<Vec<u8>>,
-    input_tx: tokio::sync::mpsc::Sender<Vec<u8>>,
+    mut output_rx: mpsc::Receiver<Vec<u8>>,
+    input_tx: mpsc::Sender<Vec<u8>>,
+    mut command_rx: mpsc::Receiver<Command>,
     mut vt: Vt,
+    mut api_handle: JoinHandle<Result<()>>,
 ) -> Result<()> {
-    let (command_tx, mut command_rx) = tokio::sync::mpsc::channel(1024);
-    let mut api = tokio::spawn(api::start(command_tx));
-    let _server = tokio::spawn(server::start());
-
     loop {
         tokio::select! {
             result = output_rx.recv() => {
@@ -78,7 +80,7 @@ async fn event_loop(
                 }
             }
 
-            _ = &mut api => {
+            _ = &mut api_handle => {
                 eprintln!("stdin closed, shutting down...");
                 break;
             }
