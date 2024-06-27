@@ -81,26 +81,48 @@ async fn do_drive_child(
             }
 
             result = master_fd.readable() => {
-                let mut _guard = result?;
+                let mut guard = result?;
 
-                while let Some(n) = nbio::read(&mut master_file, &mut buf)? {
-                    if n > 0 {
-                        output_tx.send(buf[0..n].to_vec()).await?;
-                    } else {
-                        return Ok(());
+                loop {
+                    match nbio::read(&mut master_file, &mut buf)? {
+                        Some(0) => {
+                            return Ok(());
+                        }
+
+                        Some(n) => {
+                            output_tx.send(buf[0..n].to_vec()).await?;
+                        }
+
+                        None => {
+                            guard.clear_ready();
+                            break;
+                        }
                     }
                 }
             }
 
             result = master_fd.writable(), if !input.is_empty() => {
-                let mut _guard = result?;
+                let mut guard = result?;
                 let mut buf: &[u8] = input.as_ref();
 
-                while let Some(n) = nbio::write(&mut master_file, buf)? {
-                    buf = &buf[n..];
+                loop {
+                    match nbio::write(&mut master_file, buf)? {
+                        Some(0) => {
+                            return Ok(());
+                        }
 
-                    if buf.is_empty() {
-                        break;
+                        Some(n) => {
+                            buf = &buf[n..];
+
+                            if buf.is_empty() {
+                                break;
+                            }
+                        }
+
+                        None => {
+                            guard.clear_ready();
+                            break;
+                        }
                     }
                 }
 
