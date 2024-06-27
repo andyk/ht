@@ -25,7 +25,7 @@ async fn main() -> Result<()> {
 
     let (input_tx, input_rx) = mpsc::channel(1024);
     let (output_tx, output_rx) = mpsc::channel(1024);
-    let handle = pty::spawn(command, &cli.size, input_rx, output_tx)?;
+    let handle = tokio::spawn(pty::spawn(command, &cli.size, input_rx, output_tx)?);
     let vt = Vt::new(cli.size.cols(), cli.size.rows());
     event_loop(output_rx, input_tx, vt).await?;
     handle.await??;

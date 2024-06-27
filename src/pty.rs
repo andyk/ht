@@ -8,6 +8,7 @@ use nix::unistd::{self, ForkResult, Pid};
 use std::env;
 use std::ffi::{CString, NulError};
 use std::fs::File;
+use std::future::Future;
 use std::io;
 use std::os::fd::FromRawFd;
 use std::os::fd::{AsRawFd, OwnedFd};
@@ -19,15 +20,11 @@ pub fn spawn(
     winsize: &pty::Winsize,
     input_rx: mpsc::Receiver<Vec<u8>>,
     output_tx: mpsc::Sender<Vec<u8>>,
-) -> Result<tokio::task::JoinHandle<Result<()>>> {
+) -> Result<impl Future<Output = Result<()>>> {
     let result = unsafe { pty::forkpty(Some(winsize), None) }?;
 
     match result.fork_result {
-        ForkResult::Parent { child } => {
-            let handle = tokio::spawn(drive_child(child, result.master, input_rx, output_tx));
-
-            Ok(handle)
-        }
+        ForkResult::Parent { child } => Ok(drive_child(child, result.master, input_rx, output_tx)),
 
         ForkResult::Child => {
             exec(command)?;
