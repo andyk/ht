@@ -72,9 +72,7 @@ impl Session {
 
     pub fn subscribe(&self) -> Subscription {
         let (cols, rows) = self.vt.size();
-
         let init = Event::Init(self.elapsed_time(), cols, rows, self.vt.dump());
-
         let broadcast_rx = self.broadcast_tx.subscribe();
 
         Subscription { init, broadcast_rx }
