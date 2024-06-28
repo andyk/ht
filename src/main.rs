@@ -5,12 +5,12 @@ mod locale;
 mod nbio;
 mod pty;
 mod server;
-mod vt;
+mod session;
 use anyhow::{Context, Result};
 use command::Command;
+use session::Session;
 use std::net::{SocketAddr, TcpListener};
 use tokio::{sync::mpsc, task::JoinHandle};
-use vt::Vt;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -20,17 +20,18 @@ async fn main() -> Result<()> {
     let (input_tx, input_rx) = mpsc::channel(1024);
     let (output_tx, output_rx) = mpsc::channel(1024);
     let (command_tx, command_rx) = mpsc::channel(1024);
+    let (clients_tx, clients_rx) = mpsc::channel(1);
 
-    start_http_server(cli.listen_addr).await?;
+    start_http_server(cli.listen_addr, clients_tx).await?;
     let api = start_api(command_tx);
     let pty = start_pty(cli.command, &cli.size, input_rx, output_tx)?;
-    let vt = build_vt(&cli.size);
-    run_event_loop(output_rx, input_tx, command_rx, vt, api).await?;
+    let session = build_session(&cli.size);
+    run_event_loop(output_rx, input_tx, command_rx, clients_rx, session, api).await?;
     pty.await?
 }
 
-fn build_vt(size: &cli::Size) -> vt::Vt {
-    Vt::new(size.cols(), size.rows())
+fn build_session(size: &cli::Size) -> Session {
+    Session::new(size.cols(), size.rows())
 }
 
 fn start_api(command_tx: mpsc::Sender<Command>) -> JoinHandle<Result<()>> {
@@ -51,10 +52,13 @@ fn start_pty(
     )?))
 }
 
-async fn start_http_server(listen_addr: Option<SocketAddr>) -> Result<()> {
+async fn start_http_server(
+    listen_addr: Option<SocketAddr>,
+    clients_tx: mpsc::Sender<session::Client>,
+) -> Result<()> {
     if let Some(addr) = listen_addr {
         let listener = TcpListener::bind(addr).context("cannot start HTTP listener")?;
-        let _ = tokio::spawn(server::start(listener).await?);
+        let _ = tokio::spawn(server::start(listener, clients_tx).await?);
     }
 
     Ok(())
@@ -64,14 +68,19 @@ async fn run_event_loop(
     mut output_rx: mpsc::Receiver<Vec<u8>>,
     input_tx: mpsc::Sender<Vec<u8>>,
     mut command_rx: mpsc::Receiver<Command>,
-    mut vt: Vt,
+    mut clients_rx: mpsc::Receiver<session::Client>,
+    mut session: Session,
     mut api_handle: JoinHandle<Result<()>>,
 ) -> Result<()> {
+    let mut serving = true;
+
     loop {
         tokio::select! {
             result = output_rx.recv() => {
                 match result {
-                    Some(data) => { vt.feed_bytes(&data); },
+                    Some(data) => {
+                        session.output(String::from_utf8_lossy(&data).to_string());
+                    },
 
                     None => {
                         eprintln!("process exited, shutting down...");
@@ -83,22 +92,34 @@ async fn run_event_loop(
             command = command_rx.recv() => {
                 match command {
                     Some(Command::Input(seqs)) => {
-                        let data = command::seqs_to_bytes(&seqs, vt.cursor_key_app_mode());
+                        let data = command::seqs_to_bytes(&seqs, session.cursor_key_app_mode());
                         input_tx.send(data).await?;
                     }
 
                     Some(Command::GetView) => {
-                        let resp = serde_json::json!({ "view": vt.get_text() });
+                        let resp = serde_json::json!({ "view": session.get_text() });
                         println!("{}", serde_json::to_string(&resp).unwrap());
                     }
 
                     Some(Command::Resize(cols, rows)) => {
-                        vt.resize(cols, rows);
+                        session.resize(cols, rows);
                     }
 
                     None => {
                         eprintln!("stdin closed, shutting down...");
                         break;
+                    }
+                }
+            }
+
+            client = clients_rx.recv(), if serving => {
+                match client {
+                    Some(client) => {
+                        client.accept(session.subscribe());
+                    }
+
+                    None => {
+                        serving = false;
                     }
                 }
             }
