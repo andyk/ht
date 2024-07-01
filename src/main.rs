@@ -58,7 +58,7 @@ async fn start_http_server(
 ) -> Result<()> {
     if let Some(addr) = listen_addr {
         let listener = TcpListener::bind(addr).context("cannot start HTTP listener")?;
-        let _ = tokio::spawn(server::start(listener, clients_tx).await?);
+        tokio::spawn(server::start(listener, clients_tx).await?);
     }
 
     Ok(())
