@@ -1,6 +1,6 @@
 # ht - headless terminal
 
-`ht` (short for *headless terminal*) is a command line program that wraps an arbitrary other binary (e.g. `bash`, `vim`, etc.) with a VT100 style terminal interface--i.e. a pseudoterminal client (PTY) plus terminal server--and allows easy programmatic access to the input and output of that terminal (via JSON over stdin/stdout). `ht` is built in rust and works on MacOS and Linux.
+`ht` (short for *headless terminal*) is a command line program that wraps an arbitrary other binary (e.g. `bash`, `vim`, etc.) with a VT100 style terminal interface--i.e. a pseudoterminal client (PTY) plus terminal server--and allows easy programmatic access to the input and output of that terminal (via JSON over STDIN/STDOUT). `ht` is built in rust and works on MacOS and Linux.
 
 <img src="https://andykonwinski.com/assets/img/headless-terminal.png" alt="screenshot of raw terminal output vs ht output" align="right" style="width:450px">
 
@@ -75,22 +75,31 @@ To enable it, start ht with `-l` / `--listen` option. This will print the URL of
 the live preview.
 
 By default it listens on `127.0.0.1` and a system assigned, dynamic port. If you
-need it to bind to another interface, or specific port, pass the address to the
-`-l` option, e.g. `-l 0.0.0.0:9999`.
+need it to bind to another interface, or a specific port, pass the address to
+the `-l` option, e.g. `-l 0.0.0.0:9999`.
 
 ## API
 
-Communication with ht is performed via stdin, stdout and stderr.
+ht provides 2 types of API: STDIO and WebSocket.
 
-ht uses simple JSON-based protocol for sending commands to its stdin. Each
+The STDIO API allows control and introspection of the terminal using STDIN,
+STDOUT and STDERR.
+
+WebSocket API provides several endpoints for getting terminal updates in
+real-time. Websocket API is _not_ enabled by default, and requires starting the
+built-in HTTP server with `-l` / `--listen` option.
+
+### STDIO API
+
+ht uses simple JSON-based protocol for sending commands to its STDIN. Each
 command must be sent on a separate line and be a JSON object having `"type"`
 field set to one of the supported commands (below).
 
-ht sends responses (where applicable) to its stdout, as JSON-encoded objects.
+ht sends responses (where applicable) to its STDOUT, as JSON-encoded objects.
 
-Diagnostic messages (notices, errors) are printed to stderr.
+Diagnostic messages (notices, errors) are printed to STDERR.
 
-### sendKeys
+#### sendKeys
 
 `sendKeys` command allows sending keys to a process running in the virtual
 terminal as if the keys were pressed on a keyboard.
@@ -105,7 +114,7 @@ Each element of the `keys` array can be either a key name or an arbitrary text.
 If a key is not matched by any supported key name then the text is sent to the
 process as is, i.e. like when using the `input` command.
 
-This command doesn't produce any output on stdout.
+This command doesn't produce any output on STDOUT.
 
 The key and modifier specifications were inspired by
 [tmux](https://github.com/tmux/tmux/wiki/Modifier-Keys).
@@ -146,7 +155,7 @@ etc. For text characters, instead of specifying e.g. `S-a` just use upper case
 
 Alt modifier can be used with any Unicode character and most special key names.
 
-### input
+#### input
 
 `input` command allows sending arbitrary raw input to a process running in the
 virtual terminal.
@@ -167,9 +176,9 @@ payload:
 { "type": "input", "payload": "\u0003" }
 ```
 
-This command doesn't produce any output on stdout.
+This command doesn't produce any output on STDOUT.
 
-### getView
+#### getView
 
 `getView` command allows obtaining a textual view of a terminal window.
 
@@ -177,14 +186,14 @@ This command doesn't produce any output on stdout.
 { "type": "getView" }
 ```
 
-This command responds with the current view on stdout. The view is a multi-line
+This command responds with the current view on STDOUT. The view is a multi-line
 string, where each line represents a terminal row.
 
 ```json
 { "view": "[user@host dir]$                 \n                       \n..." }
 ```
 
-### resize
+#### resize
 
 `resize` command allows resizing the virtual terminal window dynamically by
 specifying new width (`cols`) and height (`rows`).
@@ -193,15 +202,50 @@ specifying new width (`cols`) and height (`rows`).
 { "type": "resize", "cols": 80, "rows": 24 }
 ```
 
-This command doesn't produce any output on stdout.
+This command doesn't produce any output on STDOUT.
+
+### WebSocket API
+
+The WebSocket API currently provides 2 endpoints:
+
+#### `/ws/events`
+
+This endpoint allows the client to subscribe to events that happen in ht.
+
+Query param `sub` should be set to a comma-separated list of desired events.
+E.g. `/ws/events?sub=init,snapshot`.
+
+Events are delivered as JSON encoded strings, using WebSocket text message type.
+
+Every event contains 2 fields:
+
+- `type` - type of event,
+- `data` - associated data, specific to each event type.
+
+Supported events:
+
+- `init` - similar to `snapshot` (see below) but sent only once, as the first event after establishing connection
+- `stdout` - terminal output
+- `resize` - terminal resize
+- `snapshot` - view snapshot taken (e.g. with `getView`)
+
+TODO: describe the associated data for the above event types.
+
+#### `/ws/alis`
+
+This endpoint implements JSON flavor of [asciinema live stream
+protocol](https://github.com/asciinema/asciinema-player/blob/develop/src/driver/websocket.js),
+therefore allows pointing asciinema player directly to ht to get a real-time
+terminal preview. This endpoint is used by the live terminal preview page
+mentioned earlier.
 
 ## Testing on command line
 
 ht is aimed at programmatic use given its JSON-based API, however one can play
 with it by just launching it in a normal desktop terminal emulator and typing in
-JSON-encoded commands from keyboard and observing the output on stdout.
+JSON-encoded commands from keyboard and observing the output on STDOUT.
 
-[rlwrap](https://github.com/hanslub42/rlwrap) can be used to wrap stdin in a
+[rlwrap](https://github.com/hanslub42/rlwrap) can be used to wrap STDIN in a
 readline based editable prompt, which also provides history (up/down arrows).
 
 To use `rlwrap` with `ht`:
