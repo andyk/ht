@@ -15,9 +15,10 @@ pub struct Session {
 
 #[derive(Clone)]
 pub enum Event {
-    Init(f64, usize, usize, String),
-    Stdout(f64, String),
+    Init(f64, usize, usize, String, String),
+    Output(f64, String),
     Resize(f64, usize, usize),
+    Snapshot(usize, usize, String, String),
 }
 
 pub struct Client(oneshot::Sender<Subscription>);
@@ -44,7 +45,7 @@ impl Session {
     pub fn output(&mut self, data: String) {
         self.vt.feed_str(&data);
         let time = self.start_time.elapsed().as_secs_f64();
-        let _ = self.broadcast_tx.send(Event::Stdout(time, data));
+        let _ = self.broadcast_tx.send(Event::Output(time, data));
         self.stream_time = time;
         self.last_event_time = Instant::now();
     }
@@ -58,12 +59,14 @@ impl Session {
     }
 
     pub fn get_text(&self) -> String {
-        self.vt
-            .lines()
-            .iter()
-            .map(|l| l.text())
-            .collect::<Vec<_>>()
-            .join("\n")
+        let (cols, rows) = self.vt.size();
+        let text = self.text_view();
+
+        let _ = self
+            .broadcast_tx
+            .send(Event::Snapshot(cols, rows, self.vt.dump(), text.clone()));
+
+        text
     }
 
     pub fn cursor_key_app_mode(&self) -> bool {
@@ -72,7 +75,15 @@ impl Session {
 
     pub fn subscribe(&self) -> Subscription {
         let (cols, rows) = self.vt.size();
-        let init = Event::Init(self.elapsed_time(), cols, rows, self.vt.dump());
+
+        let init = Event::Init(
+            self.elapsed_time(),
+            cols,
+            rows,
+            self.vt.dump(),
+            self.text_view(),
+        );
+
         let broadcast_rx = self.broadcast_tx.subscribe();
 
         Subscription { init, broadcast_rx }
@@ -80,6 +91,15 @@ impl Session {
 
     fn elapsed_time(&self) -> f64 {
         self.stream_time + self.last_event_time.elapsed().as_secs_f64()
+    }
+
+    fn text_view(&self) -> String {
+        self.vt
+            .view()
+            .iter()
+            .map(|l| l.text())
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 }
 

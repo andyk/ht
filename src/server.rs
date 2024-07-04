@@ -1,7 +1,7 @@
 use crate::session;
 use anyhow::Result;
 use axum::{
-    extract::{connect_info::ConnectInfo, ws, State},
+    extract::{connect_info::ConnectInfo, ws, Query, State},
     http::{header, StatusCode, Uri},
     response::IntoResponse,
     routing::get,
@@ -9,6 +9,7 @@ use axum::{
 };
 use futures_util::{sink, stream, StreamExt};
 use rust_embed::RustEmbed;
+use serde::Deserialize;
 use serde_json::json;
 use std::borrow::Cow;
 use std::future::{self, Future, IntoFuture};
@@ -32,7 +33,8 @@ pub async fn start(
     eprintln!("live preview available at http://{addr}");
 
     let app: Router<()> = Router::new()
-        .route("/ws/live", get(ws_handler))
+        .route("/ws/alis", get(alis_handler))
+        .route("/ws/events", get(event_stream_handler))
         .with_state(clients_tx)
         .fallback(static_handler);
 
@@ -43,19 +45,21 @@ pub async fn start(
     .into_future())
 }
 
-async fn ws_handler(
+/// ALiS protocol handler
+///
+/// This endpoint implements ALiS (asciinema live stream) protocol (https://docs.asciinema.org/manual/alis/).
+/// It allows pointing asciinema player directly to ht to get a real-time terminal preview.
+async fn alis_handler(
     ws: ws::WebSocketUpgrade,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    ConnectInfo(_addr): ConnectInfo<SocketAddr>,
     State(clients_tx): State<mpsc::Sender<session::Client>>,
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| async move {
-        eprintln!("websocket client {addr} connected");
-        let _ = handle_socket(socket, clients_tx).await;
-        eprintln!("websocket client {addr} disconnected");
+        let _ = handle_alis_socket(socket, clients_tx).await;
     })
 }
 
-async fn handle_socket(
+async fn handle_alis_socket(
     socket: ws::WebSocket,
     clients_tx: mpsc::Sender<session::Client>,
 ) -> Result<()> {
@@ -64,7 +68,7 @@ async fn handle_socket(
 
     let result = session::stream(&clients_tx)
         .await?
-        .map(ws_result)
+        .filter_map(alis_message)
         .chain(stream::once(future::ready(Ok(close_message()))))
         .forward(sink)
         .await;
@@ -75,23 +79,149 @@ async fn handle_socket(
     Ok(())
 }
 
-fn ws_result(
+async fn alis_message(
     event: Result<session::Event, BroadcastStreamRecvError>,
-) -> Result<ws::Message, axum::Error> {
+) -> Option<Result<ws::Message, axum::Error>> {
     use session::Event::*;
 
-    event.map_err(axum::Error::new).map(|event| match event {
-        Init(time, cols, rows, init) => json_message(json!({
+    match event {
+        Ok(Init(time, cols, rows, seq, _text)) => Some(Ok(json_message(json!({
+            "time": time,
             "cols": cols,
             "rows": rows,
-            "time": time,
-            "init": init
-        })),
+            "init": seq,
+        })))),
 
-        Stdout(time, data) => json_message(json!([time, "o", data])),
+        Ok(Output(time, data)) => Some(Ok(json_message(json!([time, "o", data])))),
 
-        Resize(time, cols, rows) => json_message(json!([time, "r", format!("{cols}x{rows}")])),
+        Ok(Resize(time, cols, rows)) => Some(Ok(json_message(json!([
+            time,
+            "r",
+            format!("{cols}x{rows}")
+        ])))),
+
+        Ok(Snapshot(_, _, _, _)) => None,
+
+        Err(e) => Some(Err(axum::Error::new(e))),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct EventsParams {
+    sub: Option<String>,
+}
+
+#[derive(Default, Copy, Clone)]
+struct EventSubscription {
+    init: bool,
+    snapshot: bool,
+    resize: bool,
+    output: bool,
+}
+
+impl From<String> for EventSubscription {
+    fn from(value: String) -> Self {
+        let mut sub = EventSubscription::default();
+
+        for s in value.split(',') {
+            match s {
+                "init" => sub.init = true,
+                "output" => sub.output = true,
+                "resize" => sub.resize = true,
+                "snapshot" => sub.snapshot = true,
+                _ => (),
+            }
+        }
+
+        sub
+    }
+}
+
+/// Event stream handler
+///
+/// This endpoint allows the client to subscribe to selected events and have them delivered as they occur.
+/// Query param `sub` should be set to a comma-separated list desired of events.
+/// See above for a list of supported events.
+async fn event_stream_handler(
+    ws: ws::WebSocketUpgrade,
+    Query(params): Query<EventsParams>,
+    ConnectInfo(_addr): ConnectInfo<SocketAddr>,
+    State(clients_tx): State<mpsc::Sender<session::Client>>,
+) -> impl IntoResponse {
+    let sub = params.sub.unwrap_or_default().into();
+
+    ws.on_upgrade(move |socket| async move {
+        let _ = handle_event_stream_socket(socket, clients_tx, sub).await;
     })
+}
+
+async fn handle_event_stream_socket(
+    socket: ws::WebSocket,
+    clients_tx: mpsc::Sender<session::Client>,
+    sub: EventSubscription,
+) -> Result<()> {
+    let (sink, stream) = socket.split();
+    let drainer = tokio::spawn(stream.map(Ok).forward(sink::drain()));
+
+    let result = session::stream(&clients_tx)
+        .await?
+        .filter_map(move |e| event_stream_message(e, sub))
+        .chain(stream::once(future::ready(Ok(close_message()))))
+        .forward(sink)
+        .await;
+
+    drainer.abort();
+    result?;
+
+    Ok(())
+}
+
+async fn event_stream_message(
+    event: Result<session::Event, BroadcastStreamRecvError>,
+    sub: EventSubscription,
+) -> Option<Result<ws::Message, axum::Error>> {
+    use session::Event::*;
+
+    match event {
+        Ok(Init(_time, cols, rows, seq, text)) if sub.init => Some(Ok(json_message(json!({
+            "type": "init",
+            "data": json!({
+                "cols": cols,
+                "rows": rows,
+                "seq": seq,
+                "text": text,
+            })
+        })))),
+
+        Ok(Output(_time, data)) if sub.output => Some(Ok(json_message(json!({
+            "type": "output",
+            "data": json!({
+                "seq": data
+            })
+        })))),
+
+        Ok(Resize(_time, cols, rows)) if sub.resize => Some(Ok(json_message(json!({
+            "type": "resize",
+            "data": json!({
+                "cols": cols,
+                "rows": rows,
+            })
+        })))),
+
+        Ok(Snapshot(cols, rows, seq, text)) if sub.snapshot => Some(Ok(json_message(json!({
+            "type": "snapshot",
+            "data": json!({
+                "cols": cols,
+                "rows": rows,
+                "seq": seq,
+                "text": text,
+            })
+        })))),
+
+        Ok(_) => None,
+
+        Err(e) => Some(Err(axum::Error::new(e))),
+    }
 }
 
 fn json_message(value: serde_json::Value) -> ws::Message {
