@@ -22,7 +22,7 @@ async fn main() -> Result<()> {
     let (command_tx, command_rx) = mpsc::channel(1024);
     let (clients_tx, clients_rx) = mpsc::channel(1);
 
-    start_http_server(cli.listen_addr, clients_tx.clone()).await?;
+    start_http_server(cli.listen, clients_tx.clone()).await?;
     let api = start_api(command_tx, clients_tx);
     let pty = start_pty(cli.command, &cli.size, input_rx, output_tx)?;
     let session = build_session(&cli.size);

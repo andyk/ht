@@ -16,8 +16,8 @@ pub struct Cli {
     pub command: Vec<String>,
 
     /// Enable HTTP server
-    #[arg(short, long, default_missing_value = "127.0.0.1:0", num_args = 0..=1)]
-    pub listen_addr: Option<SocketAddr>,
+    #[arg(short, long, value_name = "LISTEN_ADDR", default_missing_value = "127.0.0.1:0", num_args = 0..=1)]
+    pub listen: Option<SocketAddr>,
 }
 
 impl Cli {

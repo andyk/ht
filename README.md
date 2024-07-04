@@ -67,6 +67,17 @@ size can also be dynamically changed - see [resize command](#resize) below.
 
 Run `ht -h` or `ht --help` to see all available options.
 
+## Live terminal preview
+
+ht comes with a built-in HTTP server which provides a handy live terminal preview page.
+
+To enable it, start ht with `-l` / `--listen` option. This will print the URL of
+the live preview.
+
+By default it listens on `127.0.0.1` and a system assigned, dynamic port. If you
+need it to bind to another interface, or specific port, pass the address to the
+`-l` option, e.g. `-l 0.0.0.0:9999`.
+
 ## API
 
 Communication with ht is performed via stdin, stdout and stderr.
