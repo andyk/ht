@@ -2,11 +2,13 @@ use crate::session;
 use anyhow::Result;
 use axum::{
     extract::{connect_info::ConnectInfo, ws, State},
+    http::{header, StatusCode, Uri},
     response::IntoResponse,
     routing::get,
     Router,
 };
 use futures_util::{sink, stream, StreamExt};
+use rust_embed::RustEmbed;
 use serde_json::json;
 use std::borrow::Cow;
 use std::future::{self, Future, IntoFuture};
@@ -15,21 +17,24 @@ use std::net::{SocketAddr, TcpListener};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 
+#[derive(RustEmbed)]
+#[folder = "assets/"]
+struct Assets;
+
 pub async fn start(
     listener: TcpListener,
     clients_tx: mpsc::Sender<session::Client>,
 ) -> Result<impl Future<Output = io::Result<()>>> {
     listener.set_nonblocking(true)?;
     let listener = tokio::net::TcpListener::from_std(listener)?;
-
-    eprintln!(
-        "HTTP server listening on {}",
-        listener.local_addr().unwrap()
-    );
+    let addr = listener.local_addr().unwrap();
+    eprintln!("HTTP server listening on {addr}");
+    eprintln!("live preview available at http://{addr}");
 
     let app: Router<()> = Router::new()
         .route("/ws/live", get(ws_handler))
-        .with_state(clients_tx);
+        .with_state(clients_tx)
+        .fallback(static_handler);
 
     Ok(axum::serve(
         listener,
@@ -98,4 +103,22 @@ fn close_message() -> ws::Message {
         code: ws::close_code::NORMAL,
         reason: Cow::from("ended"),
     }))
+}
+
+async fn static_handler(uri: Uri) -> impl IntoResponse {
+    let mut path = uri.path().trim_start_matches('/');
+
+    if path.is_empty() {
+        path = "index.html";
+    }
+
+    match Assets::get(path) {
+        Some(content) => {
+            let mime = mime_guess::from_path(path).first_or_octet_stream();
+
+            ([(header::CONTENT_TYPE, mime.as_ref())], content.data).into_response()
+        }
+
+        None => (StatusCode::NOT_FOUND, "404").into_response(),
+    }
 }

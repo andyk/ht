@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="asciinema-player.css">
+  <title>Live preview - ht</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    html {
+      padding: 0;
+    }
+
+    body {
+      box-sizing: border-box;
+      padding: 40px;
+      background-color: #282a36;
+    }
+
+    .ap-player {
+      box-shadow: #141518 0px 0px 60px 5px;
+      margin: auto 0px;
+    }
+  </style>
+</head>
+<body>
+  <script src="asciinema-player.min.js"></script>
+
+  <script>
+    const loc = window.location;
+    const src = loc.protocol.replace("http", "ws") + '//' + loc.host + '/ws/live';
+
+    const opts = {
+      logger: console,
+      fit: 'both',
+      theme: 'dracula',
+      controls: false,
+      autoPlay: true
+    };
+
+    window.player = AsciinemaPlayer.create(src, document.body, opts);
+  </script>
+</body>
+</html>
