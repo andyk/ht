@@ -237,7 +237,7 @@ This endpoint implements JSON flavor of [asciinema live stream
 protocol](https://github.com/asciinema/asciinema-player/blob/develop/src/driver/websocket.js),
 therefore allows pointing asciinema player directly to ht to get a real-time
 terminal preview. This endpoint is used by the live terminal preview page
-mentioned earlier.
+mentioned above.
 
 ## Testing on command line
 
