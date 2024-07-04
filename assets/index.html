@@ -33,7 +33,6 @@
 
   <script>
     const loc = window.location;
-    const params = new URLSearchParams(loc.hash.replace('#', '?'));
     const src = loc.protocol.replace("http", "ws") + '//' + loc.host + '/ws/live';
 
     const opts = {
