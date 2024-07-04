@@ -58,15 +58,15 @@ impl Session {
         self.last_event_time = Instant::now();
     }
 
-    pub fn get_text(&self) -> String {
+    pub fn snapshot(&self) {
         let (cols, rows) = self.vt.size();
-        let text = self.text_view();
 
-        let _ = self
-            .broadcast_tx
-            .send(Event::Snapshot(cols, rows, self.vt.dump(), text.clone()));
-
-        text
+        let _ = self.broadcast_tx.send(Event::Snapshot(
+            cols,
+            rows,
+            self.vt.dump(),
+            self.text_view(),
+        ));
     }
 
     pub fn cursor_key_app_mode(&self) -> bool {

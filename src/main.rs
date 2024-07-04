@@ -22,8 +22,8 @@ async fn main() -> Result<()> {
     let (command_tx, command_rx) = mpsc::channel(1024);
     let (clients_tx, clients_rx) = mpsc::channel(1);
 
-    start_http_server(cli.listen_addr, clients_tx).await?;
-    let api = start_api(command_tx);
+    start_http_server(cli.listen_addr, clients_tx.clone()).await?;
+    let api = start_api(command_tx, clients_tx);
     let pty = start_pty(cli.command, &cli.size, input_rx, output_tx)?;
     let session = build_session(&cli.size);
     run_event_loop(output_rx, input_tx, command_rx, clients_rx, session, api).await?;
@@ -34,8 +34,11 @@ fn build_session(size: &cli::Size) -> Session {
     Session::new(size.cols(), size.rows())
 }
 
-fn start_api(command_tx: mpsc::Sender<Command>) -> JoinHandle<Result<()>> {
-    tokio::spawn(api::start(command_tx))
+fn start_api(
+    command_tx: mpsc::Sender<Command>,
+    clients_tx: mpsc::Sender<session::Client>,
+) -> JoinHandle<Result<()>> {
+    tokio::spawn(api::start(command_tx, clients_tx))
 }
 
 fn start_pty(
@@ -96,9 +99,8 @@ async fn run_event_loop(
                         input_tx.send(data).await?;
                     }
 
-                    Some(Command::GetView) => {
-                        let resp = serde_json::json!({ "view": session.get_text() });
-                        println!("{}", serde_json::to_string(&resp).unwrap());
+                    Some(Command::Snapshot) => {
+                        session.snapshot();
                     }
 
                     Some(Command::Resize(cols, rows)) => {

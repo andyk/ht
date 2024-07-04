@@ -1,7 +1,7 @@
 #[derive(Debug)]
 pub enum Command {
     Input(Vec<InputSeq>),
-    GetView,
+    Snapshot,
     Resize(usize, usize),
 }
 

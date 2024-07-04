@@ -1,9 +1,11 @@
 use crate::command::{self, Command, InputSeq};
+use crate::session::{self, Event};
 use anyhow::Result;
 use serde::{de::DeserializeOwned, Deserialize};
 use std::io;
 use std::thread;
 use tokio::sync::mpsc;
+use tokio_stream::StreamExt;
 
 #[derive(Debug, Deserialize)]
 struct InputArgs {
@@ -21,14 +23,41 @@ struct ResizeArgs {
     rows: usize,
 }
 
-pub async fn start(command_tx: mpsc::Sender<Command>) -> Result<()> {
+pub async fn start(
+    command_tx: mpsc::Sender<Command>,
+    clients_tx: mpsc::Sender<session::Client>,
+) -> Result<()> {
     let (input_tx, mut input_rx) = mpsc::unbounded_channel();
     thread::spawn(|| read_stdin(input_tx));
+    let mut events = session::stream(&clients_tx).await?;
 
-    while let Some(line) = input_rx.recv().await {
-        match parse_line(&line) {
-            Ok(command) => command_tx.send(command).await?,
-            Err(e) => eprintln!("command parse error: {e}"),
+    loop {
+        tokio::select! {
+            line = input_rx.recv() => {
+                match line {
+                    Some(line) => {
+                        match parse_line(&line) {
+                            Ok(command) => command_tx.send(command).await?,
+                            Err(e) => eprintln!("command parse error: {e}"),
+                        }
+                    }
+
+                    None => break
+                }
+            }
+
+            event = events.next() => {
+                match event {
+                    Some(Ok(Event::Snapshot(_cols, _rows, _seq, text))) => {
+                        let msg = serde_json::json!({ "view": text });
+                        println!("{}", serde_json::to_string(&msg).unwrap());
+                    }
+
+                    Some(_) => (),
+
+                    None => break
+                }
+            }
         }
     }
 
@@ -67,7 +96,7 @@ fn build_command(value: serde_json::Value) -> Result<Command, String> {
             Ok(Command::Resize(args.cols, args.rows))
         }
 
-        Some("getView") => Ok(Command::GetView),
+        Some("getView") => Ok(Command::Snapshot),
 
         other => Err(format!("invalid command type: {other:?}")),
     }
@@ -434,7 +463,7 @@ mod test {
     #[test]
     fn parse_get_view() {
         let command = parse_line(r#"{ "type": "getView" }"#).unwrap();
-        assert!(matches!(command, Command::GetView));
+        assert!(matches!(command, Command::Snapshot));
     }
 
     #[test]
