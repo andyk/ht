@@ -225,7 +225,7 @@ Every event contains 2 fields:
 Supported events:
 
 - `init` - similar to `snapshot` (see below) but sent only once, as the first event after establishing connection
-- `stdout` - terminal output
+- `output` - terminal output
 - `resize` - terminal resize
 - `snapshot` - view snapshot taken (e.g. with `getView`)
 
