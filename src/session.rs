@@ -1,5 +1,6 @@
 use anyhow::Result;
 use futures_util::{stream, Stream, StreamExt};
+use serde_json::json;
 use std::future;
 use std::time::{Duration, Instant};
 use tokio::sync::{broadcast, mpsc, oneshot};
@@ -100,6 +101,47 @@ impl Session {
             .map(|l| l.text())
             .collect::<Vec<_>>()
             .join("\n")
+    }
+}
+
+impl Event {
+    pub fn to_json(&self) -> serde_json::Value {
+        match self {
+            Event::Init(_time, cols, rows, seq, text) => json!({
+                "type": "init",
+                "data": json!({
+                    "cols": cols,
+                    "rows": rows,
+                    "seq": seq,
+                    "text": text,
+                })
+            }),
+
+            Event::Output(_time, seq) => json!({
+                "type": "output",
+                "data": json!({
+                    "seq": seq
+                })
+            }),
+
+            Event::Resize(_time, cols, rows) => json!({
+                "type": "resize",
+                "data": json!({
+                    "cols": cols,
+                    "rows": rows,
+                })
+            }),
+
+            Event::Snapshot(cols, rows, seq, text) => json!({
+                "type": "snapshot",
+                "data": json!({
+                    "cols": cols,
+                    "rows": rows,
+                    "seq": seq,
+                    "text": text,
+                })
+            }),
+        }
     }
 }
 

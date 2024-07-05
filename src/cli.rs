@@ -1,3 +1,4 @@
+use crate::api::Subscription;
 use anyhow::bail;
 use clap::Parser;
 use nix::pty;
@@ -18,6 +19,10 @@ pub struct Cli {
     /// Enable HTTP server
     #[arg(short, long, value_name = "LISTEN_ADDR", default_missing_value = "127.0.0.1:0", num_args = 0..=1)]
     pub listen: Option<SocketAddr>,
+
+    /// Subscribe to events
+    #[arg(long, value_name = "EVENTS")]
+    pub subscribe: Option<Subscription>,
 }
 
 impl Cli {

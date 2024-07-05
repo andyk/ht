@@ -95,7 +95,13 @@ ht uses simple JSON-based protocol for sending commands to its STDIN. Each
 command must be sent on a separate line and be a JSON object having `"type"`
 field set to one of the supported commands (below).
 
-ht sends responses (where applicable) to its STDOUT, as JSON-encoded objects.
+Some of the commands trigger [events](#events). ht may also internally trigger
+various events on its own. To subscribe to desired events use `--subscribe
+[<event-name>, <event-name>, ...]` option when starting ht. This will print the
+events as they occur to ht's STDOUT, as JSON-encoded objects. For example, to
+subscribe to view snapshots (triggered by sending `takeSnapshot` command) use
+`--subscribe snapshot` option. See [events](#events) below for a list of
+available event types and their payloads.
 
 Diagnostic messages (notices, errors) are printed to STDERR.
 
@@ -113,8 +119,6 @@ terminal as if the keys were pressed on a keyboard.
 Each element of the `keys` array can be either a key name or an arbitrary text.
 If a key is not matched by any supported key name then the text is sent to the
 process as is, i.e. like when using the `input` command.
-
-This command doesn't produce any output on STDOUT.
 
 The key and modifier specifications were inspired by
 [tmux](https://github.com/tmux/tmux/wiki/Modifier-Keys).
@@ -155,6 +159,8 @@ etc. For text characters, instead of specifying e.g. `S-a` just use upper case
 
 Alt modifier can be used with any Unicode character and most special key names.
 
+This command doesn't trigger any event.
+
 #### input
 
 `input` command allows sending arbitrary raw input to a process running in the
@@ -176,22 +182,17 @@ payload:
 { "type": "input", "payload": "\u0003" }
 ```
 
-This command doesn't produce any output on STDOUT.
+This command doesn't trigger any event.
 
-#### getView
+#### takeSnapshot
 
-`getView` command allows obtaining a textual view of a terminal window.
-
-```json
-{ "type": "getView" }
-```
-
-This command responds with the current view on STDOUT. The view is a multi-line
-string, where each line represents a terminal row.
+`takeSnapshot` command allows taking a textual snapshot of the the terminal view.
 
 ```json
-{ "view": "[user@host dir]$                 \n                       \n..." }
+{ "type": "takeSnapshot" }
 ```
+
+This command triggers `snapshot` event.
 
 #### resize
 
@@ -202,7 +203,7 @@ specifying new width (`cols`) and height (`rows`).
 { "type": "resize", "cols": 80, "rows": 24 }
 ```
 
-This command doesn't produce any output on STDOUT.
+This command triggers `resize` event.
 
 ### WebSocket API
 
@@ -217,19 +218,7 @@ E.g. `/ws/events?sub=init,snapshot`.
 
 Events are delivered as JSON encoded strings, using WebSocket text message type.
 
-Every event contains 2 fields:
-
-- `type` - type of event,
-- `data` - associated data, specific to each event type.
-
-Supported events:
-
-- `init` - similar to `snapshot` (see below) but sent only once, as the first event after establishing connection
-- `output` - terminal output
-- `resize` - terminal resize
-- `snapshot` - view snapshot taken (e.g. with `getView`)
-
-TODO: describe the associated data for the above event types.
+See [events](#events) section below for the description of all available events.
 
 #### `/ws/alis`
 
@@ -238,6 +227,54 @@ protocol](https://github.com/asciinema/asciinema-player/blob/develop/src/driver/
 therefore allows pointing asciinema player directly to ht to get a real-time
 terminal preview. This endpoint is used by the live terminal preview page
 mentioned above.
+
+### Events
+
+The events emitted to STDOUT and via `/ws/events` WebSocket endpoint are
+identical, i.e. they are JSON-encoded objects with the same fields and payloads.
+
+Every event contains 2 top-level fields:
+
+- `type` - type of event,
+- `data` - associated data, specific to each event type.
+
+The following event types are currently available:
+
+#### `init`
+
+Same as `snapshot` event (see below) but sent only once, as the first event
+after ht's start (when sent to STDOUT) and upon establishing of WebSocket
+connection.
+
+#### `output`
+
+Terminal output. Sent when an application (e.g. shell) running under ht prints
+something to the terminal.
+
+Event data is an object with the following fields:
+
+- `seq` - a raw sequence of characters written to a terminal, potentially including control sequences (colors, cursor positioning, etc.)
+
+#### `resize`
+
+Terminal resize. Send when the terminal is resized with the `resize` command.
+
+Event data is an object with the following fields:
+
+- `cols` - current terminal width, number of columns
+- `rows` - current terminal height, number of rows
+
+#### `snapshot`
+
+Terminal window snapshot. Sent when the terminal snapshot is taken with the
+`takeSnapshot` command.
+
+Event data is an object with the following fields:
+
+- `cols` - current terminal width, number of columns
+- `rows` - current terminal height, number of rows
+- `text` - plain text snapshot as multi-line string, where each line represents a terminal row
+- `seq` - a raw sequence of characters, which when printed to a blank terminal puts it in the same state as [ht's virtual terminal](https://github.com/asciinema/avt)
 
 ## Testing on command line
 
