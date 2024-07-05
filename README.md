@@ -97,7 +97,7 @@ field set to one of the supported commands (below).
 
 Some of the commands trigger [events](#events). ht may also internally trigger
 various events on its own. To subscribe to desired events use `--subscribe
-[<event-name>, <event-name>, ...]` option when starting ht. This will print the
+[<event-name>,<event-name>,...]` option when starting ht. This will print the
 events as they occur to ht's STDOUT, as JSON-encoded objects. For example, to
 subscribe to view snapshots (triggered by sending `takeSnapshot` command) use
 `--subscribe snapshot` option. See [events](#events) below for a list of
