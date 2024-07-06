@@ -476,8 +476,8 @@ mod test {
     }
 
     #[test]
-    fn parse_get_view() {
-        let command = parse_line(r#"{ "type": "getView" }"#).unwrap();
+    fn parse_take_snapshot() {
+        let command = parse_line(r#"{ "type": "takeSnapshot" }"#).unwrap();
         assert!(matches!(command, Command::Snapshot));
     }
 
