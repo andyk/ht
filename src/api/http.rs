@@ -1,3 +1,4 @@
+use super::Subscription;
 use crate::session;
 use anyhow::Result;
 use axum::{
@@ -111,32 +112,6 @@ struct EventsParams {
     sub: Option<String>,
 }
 
-#[derive(Default, Copy, Clone)]
-struct EventSubscription {
-    init: bool,
-    snapshot: bool,
-    resize: bool,
-    output: bool,
-}
-
-impl From<String> for EventSubscription {
-    fn from(value: String) -> Self {
-        let mut sub = EventSubscription::default();
-
-        for s in value.split(',') {
-            match s {
-                "init" => sub.init = true,
-                "output" => sub.output = true,
-                "resize" => sub.resize = true,
-                "snapshot" => sub.snapshot = true,
-                _ => (),
-            }
-        }
-
-        sub
-    }
-}
-
 /// Event stream handler
 ///
 /// This endpoint allows the client to subscribe to selected events and have them delivered as they occur.
@@ -148,7 +123,7 @@ async fn event_stream_handler(
     ConnectInfo(_addr): ConnectInfo<SocketAddr>,
     State(clients_tx): State<mpsc::Sender<session::Client>>,
 ) -> impl IntoResponse {
-    let sub = params.sub.unwrap_or_default().into();
+    let sub: Subscription = params.sub.unwrap_or_default().parse().unwrap_or_default();
 
     ws.on_upgrade(move |socket| async move {
         let _ = handle_event_stream_socket(socket, clients_tx, sub).await;
@@ -158,7 +133,7 @@ async fn event_stream_handler(
 async fn handle_event_stream_socket(
     socket: ws::WebSocket,
     clients_tx: mpsc::Sender<session::Client>,
-    sub: EventSubscription,
+    sub: Subscription,
 ) -> Result<()> {
     let (sink, stream) = socket.split();
     let drainer = tokio::spawn(stream.map(Ok).forward(sink::drain()));
@@ -178,48 +153,16 @@ async fn handle_event_stream_socket(
 
 async fn event_stream_message(
     event: Result<session::Event, BroadcastStreamRecvError>,
-    sub: EventSubscription,
+    sub: Subscription,
 ) -> Option<Result<ws::Message, axum::Error>> {
     use session::Event::*;
 
     match event {
-        Ok(Init(_time, cols, rows, seq, text)) if sub.init => Some(Ok(json_message(json!({
-            "type": "init",
-            "data": json!({
-                "cols": cols,
-                "rows": rows,
-                "seq": seq,
-                "text": text,
-            })
-        })))),
-
-        Ok(Output(_time, data)) if sub.output => Some(Ok(json_message(json!({
-            "type": "output",
-            "data": json!({
-                "seq": data
-            })
-        })))),
-
-        Ok(Resize(_time, cols, rows)) if sub.resize => Some(Ok(json_message(json!({
-            "type": "resize",
-            "data": json!({
-                "cols": cols,
-                "rows": rows,
-            })
-        })))),
-
-        Ok(Snapshot(cols, rows, seq, text)) if sub.snapshot => Some(Ok(json_message(json!({
-            "type": "snapshot",
-            "data": json!({
-                "cols": cols,
-                "rows": rows,
-                "seq": seq,
-                "text": text,
-            })
-        })))),
-
+        Ok(e @ Init(_, _, _, _, _)) if sub.init => Some(Ok(json_message(e.to_json()))),
+        Ok(e @ Output(_, _)) if sub.output => Some(Ok(json_message(e.to_json()))),
+        Ok(e @ Resize(_, _, _)) if sub.resize => Some(Ok(json_message(e.to_json()))),
+        Ok(e @ Snapshot(_, _, _, _)) if sub.snapshot => Some(Ok(json_message(e.to_json()))),
         Ok(_) => None,
-
         Err(e) => Some(Err(axum::Error::new(e))),
     }
 }

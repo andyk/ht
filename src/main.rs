@@ -4,7 +4,6 @@ mod command;
 mod locale;
 mod nbio;
 mod pty;
-mod server;
 mod session;
 use anyhow::{Context, Result};
 use command::Command;
@@ -22,8 +21,8 @@ async fn main() -> Result<()> {
     let (command_tx, command_rx) = mpsc::channel(1024);
     let (clients_tx, clients_rx) = mpsc::channel(1);
 
-    start_http_server(cli.listen, clients_tx.clone()).await?;
-    let api = start_api(command_tx, clients_tx);
+    start_http_api(cli.listen, clients_tx.clone()).await?;
+    let api = start_stdio_api(command_tx, clients_tx, cli.subscribe.unwrap_or_default());
     let pty = start_pty(cli.command, &cli.size, input_rx, output_tx)?;
     let session = build_session(&cli.size);
     run_event_loop(output_rx, input_tx, command_rx, clients_rx, session, api).await?;
@@ -34,11 +33,12 @@ fn build_session(size: &cli::Size) -> Session {
     Session::new(size.cols(), size.rows())
 }
 
-fn start_api(
+fn start_stdio_api(
     command_tx: mpsc::Sender<Command>,
     clients_tx: mpsc::Sender<session::Client>,
+    sub: api::Subscription,
 ) -> JoinHandle<Result<()>> {
-    tokio::spawn(api::start(command_tx, clients_tx))
+    tokio::spawn(api::stdio::start(command_tx, clients_tx, sub))
 }
 
 fn start_pty(
@@ -55,13 +55,13 @@ fn start_pty(
     )?))
 }
 
-async fn start_http_server(
+async fn start_http_api(
     listen_addr: Option<SocketAddr>,
     clients_tx: mpsc::Sender<session::Client>,
 ) -> Result<()> {
     if let Some(addr) = listen_addr {
         let listener = TcpListener::bind(addr).context("cannot start HTTP listener")?;
-        tokio::spawn(server::start(listener, clients_tx).await?);
+        tokio::spawn(api::http::start(listener, clients_tx).await?);
     }
 
     Ok(())
