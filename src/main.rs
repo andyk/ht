@@ -6,7 +6,7 @@ mod nbio;
 mod pty;
 mod session;
 use anyhow::{Context, Result};
-use command::Command;
+use command::{Command, InputSeq};
 use session::Session;
 use std::net::{SocketAddr, TcpListener};
 use tokio::{sync::mpsc, task::JoinHandle};
@@ -75,7 +75,10 @@ async fn run_event_loop(
     mut session: Session,
     mut api_handle: JoinHandle<Result<()>>,
 ) -> Result<()> {
+    let cli = cli::Cli::new();
     let mut serving = true;
+    let mut process_exited = false;
+    let mut wait_for_enter = false;
 
     loop {
         tokio::select! {
@@ -86,8 +89,14 @@ async fn run_event_loop(
                     },
 
                     None => {
-                        eprintln!("process exited, shutting down...");
-                        break;
+                        if !process_exited && cli.no_exit {
+                            eprintln!("Process exited. Send {{\"type\": \"sendKeys\", \"keys\": [\"Enter\"]}} to exit...");
+                            process_exited = true;
+                            wait_for_enter = true;
+                        } else if !cli.no_exit {
+                            eprintln!("Process exited, shutting down...");
+                            break;
+                        }
                     }
                 }
             }
@@ -95,6 +104,18 @@ async fn run_event_loop(
             command = command_rx.recv() => {
                 match command {
                     Some(Command::Input(seqs)) => {
+                        if wait_for_enter {
+                            // Check if Enter was pressed
+                            for seq in &seqs {
+                                if let InputSeq::Standard(key) = seq {
+                                    if key == "\r" || key == "\n" {
+                                        eprintln!("Enter command received, shutting down...");
+                                        return Ok(());
+                                    }
+                                }
+                            }
+                        }
+                        
                         let data = command::seqs_to_bytes(&seqs, session.cursor_key_app_mode());
                         input_tx.send(data).await?;
                     }
@@ -108,8 +129,10 @@ async fn run_event_loop(
                     }
 
                     None => {
-                        eprintln!("stdin closed, shutting down...");
-                        break;
+                        if !process_exited {
+                            eprintln!("stdin closed, shutting down...");
+                            break;
+                        }
                     }
                 }
             }
@@ -127,8 +150,10 @@ async fn run_event_loop(
             }
 
             _ = &mut api_handle => {
-                eprintln!("stdin closed, shutting down...");
-                break;
+                if !process_exited {
+                    eprintln!("API handle closed, shutting down...");
+                    break;
+                }
             }
         }
     }

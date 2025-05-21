@@ -23,6 +23,10 @@ pub struct Cli {
     /// Subscribe to events
     #[arg(long, value_name = "EVENTS")]
     pub subscribe: Option<Subscription>,
+    
+    /// Keep terminal session open after subprocess exits (send "Enter" key to fully quit)
+    #[arg(long)]
+    pub no_exit: bool,
 }
 
 impl Cli {
