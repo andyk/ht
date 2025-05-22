@@ -20,12 +20,13 @@ async fn main() -> Result<()> {
     let (output_tx, output_rx) = mpsc::channel(1024);
     let (command_tx, command_rx) = mpsc::channel(1024);
     let (clients_tx, clients_rx) = mpsc::channel(1);
+    let (pid_tx, pid_rx) = mpsc::channel(1);
 
     start_http_api(cli.listen, clients_tx.clone()).await?;
     let api = start_stdio_api(command_tx, clients_tx, cli.subscribe.unwrap_or_default());
-    let pty = start_pty(cli.command, &cli.size, input_rx, output_tx)?;
+    let pty = start_pty(cli.command, &cli.size, input_rx, output_tx, pid_tx)?;
     let session = build_session(&cli.size);
-    run_event_loop(output_rx, input_tx, command_rx, clients_rx, session, api).await?;
+    run_event_loop(output_rx, input_tx, command_rx, clients_rx, pid_rx, session, api).await?;
     pty.await?
 }
 
@@ -46,12 +47,13 @@ fn start_pty(
     size: &cli::Size,
     input_rx: mpsc::Receiver<Vec<u8>>,
     output_tx: mpsc::Sender<Vec<u8>>,
+    pid_tx: mpsc::Sender<i32>,
 ) -> Result<JoinHandle<Result<()>>> {
     let command = command.join(" ");
     eprintln!("launching \"{}\" in terminal of size {}", command, size);
 
     Ok(tokio::spawn(pty::spawn(
-        command, size, input_rx, output_tx,
+        command, size, input_rx, output_tx, pid_tx,
     )?))
 }
 
@@ -72,6 +74,7 @@ async fn run_event_loop(
     input_tx: mpsc::Sender<Vec<u8>>,
     mut command_rx: mpsc::Receiver<Command>,
     mut clients_rx: mpsc::Receiver<session::Client>,
+    mut pid_rx: mpsc::Receiver<i32>,
     mut session: Session,
     mut api_handle: JoinHandle<Result<()>>,
 ) -> Result<()> {
@@ -89,6 +92,12 @@ async fn run_event_loop(
                         eprintln!("process exited, shutting down...");
                         break;
                     }
+                }
+            }
+
+            pid = pid_rx.recv() => {
+                if let Some(pid) = pid {
+                    session.emit_pid(pid);
                 }
             }
 

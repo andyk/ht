@@ -12,14 +12,16 @@ pub struct Session {
     stream_time: f64,
     start_time: Instant,
     last_event_time: Instant,
+    pending_pid: Option<i32>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Event {
     Init(f64, usize, usize, String, String),
     Output(f64, String),
     Resize(f64, usize, usize),
     Snapshot(usize, usize, String, String),
+    Pid(f64, i32),
 }
 
 pub struct Client(oneshot::Sender<Subscription>);
@@ -40,6 +42,7 @@ impl Session {
             stream_time: 0.0,
             start_time: now,
             last_event_time: now,
+            pending_pid: None,
         }
     }
 
@@ -70,6 +73,15 @@ impl Session {
         ));
     }
 
+    pub fn emit_pid(&mut self, pid: i32) {
+        self.pending_pid = Some(pid);
+
+        let time = self.start_time.elapsed().as_secs_f64();
+        let _ = self.broadcast_tx.send(Event::Pid(time, pid));
+        self.stream_time = time;
+        self.last_event_time = Instant::now();
+    }
+
     pub fn cursor_key_app_mode(&self) -> bool {
         self.vt.arrow_key_app_mode()
     }
@@ -86,6 +98,11 @@ impl Session {
         );
 
         let broadcast_rx = self.broadcast_tx.subscribe();
+
+        if let Some(pid) = self.pending_pid {
+            let time = self.elapsed_time();
+            let _ = self.broadcast_tx.send(Event::Pid(time, pid));
+        }
 
         Subscription { init, broadcast_rx }
     }
@@ -139,6 +156,13 @@ impl Event {
                     "rows": rows,
                     "seq": seq,
                     "text": text,
+                })
+            }),
+
+            Event::Pid(_time, pid) => json!({
+                "type": "pid",
+                "data": json!({
+                    "pid": pid
                 })
             }),
         }
