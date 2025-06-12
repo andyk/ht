@@ -142,6 +142,7 @@ fn parse_key(key: String) -> InputSeq {
         "C--" | "C-_" => "\x1f",
         "Tab" => "\x09",   // same as C-i
         "Enter" => "\x0d", // same as C-m
+        "Backspace" => "\x7f", // DEL character
         "Space" => " ",
         "Left" => return cursor_key("\x1b[D", "\x1bOD"),
         "Right" => return cursor_key("\x1b[C", "\x1bOC"),
@@ -309,6 +310,7 @@ mod test {
             ["C-Space", "\x00"],
             ["Tab", "\x09"],
             ["Enter", "\x0d"],
+            ["Backspace", "\x7f"],
             ["Escape", "\x1b"],
             ["^[", "\x1b"],
             ["C-Left", "\x1b[1;5D"],
