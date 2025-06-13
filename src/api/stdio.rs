@@ -68,6 +68,10 @@ pub async fn start(
                         println!("{}", e.to_json().to_string());
                     }
 
+                    Some(Ok(e @ ExitCode(_, _))) if sub.exit_code => {
+                        println!("{}", e.to_json().to_string());
+                    }
+
                     Some(_) => (),
 
                     None => break

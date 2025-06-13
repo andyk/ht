@@ -8,6 +8,7 @@ pub struct Subscription {
     snapshot: bool,
     resize: bool,
     output: bool,
+    exit_code: bool,
 }
 
 impl FromStr for Subscription {
@@ -22,6 +23,7 @@ impl FromStr for Subscription {
                 "output" => sub.output = true,
                 "resize" => sub.resize = true,
                 "snapshot" => sub.snapshot = true,
+                "exitCode" => sub.exit_code = true,
                 _ => return Err(format!("invalid event name: {event}")),
             }
         }
