@@ -53,19 +53,19 @@ pub async fn start(
 
                 match event {
                     Some(Ok(e @ Init(_, _, _, _, _))) if sub.init => {
-                        println!("{}", e.to_json().to_string());
+                        println!("{}", e.to_json());
                     }
 
                     Some(Ok(e @ Output(_, _))) if sub.output => {
-                        println!("{}", e.to_json().to_string());
+                        println!("{}", e.to_json());
                     }
 
                     Some(Ok(e @ Resize(_, _, _))) if sub.resize => {
-                        println!("{}", e.to_json().to_string());
+                        println!("{}", e.to_json());
                     }
 
                     Some(Ok(e @ Snapshot(_, _, _, _))) if sub.snapshot => {
-                        println!("{}", e.to_json().to_string());
+                        println!("{}", e.to_json());
                     }
 
                     Some(_) => (),
