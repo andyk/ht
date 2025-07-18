@@ -68,6 +68,10 @@ pub async fn start(
                         println!("{}", e.to_json().to_string());
                     }
 
+                    Some(Ok(e @ Pid(_, _))) if sub.pid => {
+                        println!("{}", e.to_json().to_string());
+                    }
+
                     Some(_) => (),
 
                     None => break
