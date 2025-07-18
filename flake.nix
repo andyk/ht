@@ -19,8 +19,28 @@
       let
         overlays = [ (import rust-overlay) ];
         pkgs = import nixpkgs { inherit system overlays; };
+
+        ht = pkgs.rustPlatform.buildRustPackage {
+          pname = "ht";
+          version = (builtins.fromTOML (builtins.readFile ./Cargo.toml)).package.version;
+          src = self;
+
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+          };
+
+          buildInputs = pkgs.lib.optionals pkgs.stdenv.isDarwin [
+            pkgs.libiconv
+            pkgs.darwin.apple_sdk.frameworks.Foundation
+          ];
+        };
       in
       {
+        packages = {
+          ht = ht;
+          default = ht;
+        };
+
         devShells.default = pkgs.mkShell {
           nativeBuildInputs =
             with pkgs;
