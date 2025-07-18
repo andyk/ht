@@ -71,7 +71,7 @@ impl Session {
     }
 
     pub fn cursor_key_app_mode(&self) -> bool {
-        self.vt.arrow_key_app_mode()
+        self.vt.cursor_key_app_mode()
     }
 
     pub fn subscribe(&self) -> Subscription {
@@ -146,11 +146,11 @@ impl Event {
 }
 
 fn build_vt(cols: usize, rows: usize) -> avt::Vt {
-    avt::Vt::builder().size(cols, rows).resizable(true).build()
+    avt::Vt::builder().size(cols, rows).build()
 }
 
 fn resize_vt(vt: &mut avt::Vt, cols: usize, rows: usize) {
-    vt.feed_str(&format!("\x1b[8;{rows};{cols}t"));
+    vt.resize(cols, rows);
 }
 
 impl Client {
