@@ -19,7 +19,7 @@ Download and use [the latest binary](https://github.com/andyk/ht/releases/latest
 ## Building
 
 Building from source requires the [Rust](https://www.rust-lang.org/) compiler
-(1.74 or later), and the [Cargo package
+(1.84 or later), and the [Cargo package
 manager](https://doc.rust-lang.org/cargo/). If they are not available via your
 system package manager then use [rustup](https://rustup.rs/).
 

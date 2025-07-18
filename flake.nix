@@ -45,7 +45,7 @@
           nativeBuildInputs =
             with pkgs;
             [
-              (rust-bin.stable."1.74.0".default.override { extensions = [ "rust-src" ]; })
+              (rust-bin.stable."1.84.0".default.override { extensions = [ "rust-src" "rust-analyzer" ]; })
               bashInteractive
             ]
             ++ (lib.optionals stdenv.isDarwin [
