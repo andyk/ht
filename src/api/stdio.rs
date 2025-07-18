@@ -140,8 +140,8 @@ fn parse_key(key: String) -> InputSeq {
         "C-]" | "^]" => "\x1d",
         "C-^" | "C-/" => "\x1e",
         "C--" | "C-_" => "\x1f",
-        "Tab" => "\x09",   // same as C-i
-        "Enter" => "\x0d", // same as C-m
+        "Tab" => "\x09",       // same as C-i
+        "Enter" => "\x0d",     // same as C-m
         "Backspace" => "\x7f", // DEL character
         "Space" => " ",
         "Left" => return cursor_key("\x1b[D", "\x1bOD"),
