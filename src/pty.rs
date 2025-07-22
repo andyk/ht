@@ -20,11 +20,14 @@ pub fn spawn(
     winsize: &pty::Winsize,
     input_rx: mpsc::Receiver<Vec<u8>>,
     output_tx: mpsc::Sender<Vec<u8>>,
-) -> Result<impl Future<Output = Result<()>>> {
+) -> Result<(i32, impl Future<Output = Result<()>>)> {
     let result = unsafe { pty::forkpty(Some(winsize), None) }?;
 
     match result.fork_result {
-        ForkResult::Parent { child } => Ok(drive_child(child, result.master, input_rx, output_tx)),
+        ForkResult::Parent { child } => Ok((
+            child.as_raw(),
+            drive_child(child, result.master, input_rx, output_tx),
+        )),
 
         ForkResult::Child => {
             exec(command)?;

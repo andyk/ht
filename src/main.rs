@@ -23,14 +23,14 @@ async fn main() -> Result<()> {
 
     start_http_api(cli.listen, clients_tx.clone()).await?;
     let api = start_stdio_api(command_tx, clients_tx, cli.subscribe.unwrap_or_default());
-    let pty = start_pty(cli.command, &cli.size, input_rx, output_tx)?;
-    let session = build_session(&cli.size);
+    let (pid, pty) = start_pty(cli.command, &cli.size, input_rx, output_tx)?;
+    let session = build_session(&cli.size, pid);
     run_event_loop(output_rx, input_tx, command_rx, clients_rx, session, api).await?;
     pty.await?
 }
 
-fn build_session(size: &cli::Size) -> Session {
-    Session::new(size.cols(), size.rows())
+fn build_session(size: &cli::Size, pid: i32) -> Session {
+    Session::new(size.cols(), size.rows(), pid)
 }
 
 fn start_stdio_api(
@@ -46,13 +46,12 @@ fn start_pty(
     size: &cli::Size,
     input_rx: mpsc::Receiver<Vec<u8>>,
     output_tx: mpsc::Sender<Vec<u8>>,
-) -> Result<JoinHandle<Result<()>>> {
+) -> Result<(i32, JoinHandle<Result<()>>)> {
     let command = command.join(" ");
     eprintln!("launching \"{}\" in terminal of size {}", command, size);
+    let (pid, fut) = pty::spawn(command, size, input_rx, output_tx)?;
 
-    Ok(tokio::spawn(pty::spawn(
-        command, size, input_rx, output_tx,
-    )?))
+    Ok((pid, tokio::spawn(fut)))
 }
 
 async fn start_http_api(

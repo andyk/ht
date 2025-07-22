@@ -52,7 +52,7 @@ pub async fn start(
                 use session::Event::*;
 
                 match event {
-                    Some(Ok(e @ Init(_, _, _, _, _))) if sub.init => {
+                    Some(Ok(e @ Init(_, _, _, _, _, _))) if sub.init => {
                         println!("{}", e.to_json());
                     }
 
