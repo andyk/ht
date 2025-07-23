@@ -86,7 +86,7 @@ async fn alis_message(
     use session::Event::*;
 
     match event {
-        Ok(Init(time, cols, rows, seq, _text)) => Some(Ok(json_message(json!({
+        Ok(Init(time, cols, rows, _pid, seq, _text)) => Some(Ok(json_message(json!({
             "time": time,
             "cols": cols,
             "rows": rows,
@@ -158,7 +158,7 @@ async fn event_stream_message(
     use session::Event::*;
 
     match event {
-        Ok(e @ Init(_, _, _, _, _)) if sub.init => Some(Ok(json_message(e.to_json()))),
+        Ok(e @ Init(_, _, _, _, _, _)) if sub.init => Some(Ok(json_message(e.to_json()))),
         Ok(e @ Output(_, _)) if sub.output => Some(Ok(json_message(e.to_json()))),
         Ok(e @ Resize(_, _, _)) if sub.resize => Some(Ok(json_message(e.to_json()))),
         Ok(e @ Snapshot(_, _, _, _)) if sub.snapshot => Some(Ok(json_message(e.to_json()))),

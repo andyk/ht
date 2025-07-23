@@ -246,6 +246,10 @@ Same as `snapshot` event (see below) but sent only once, as the first event
 after ht's start (when sent to STDOUT) and upon establishing of WebSocket
 connection.
 
+In addition to the fields from `snapshot` event this one includes:
+
+- `pid` - PID of the top-level process started by ht (e.g. PID of bash)
+
 #### `output`
 
 Terminal output. Sent when an application (e.g. shell) running under ht prints

@@ -12,11 +12,12 @@ pub struct Session {
     stream_time: f64,
     start_time: Instant,
     last_event_time: Instant,
+    pid: i32,
 }
 
 #[derive(Clone)]
 pub enum Event {
-    Init(f64, usize, usize, String, String),
+    Init(f64, usize, usize, i32, String, String),
     Output(f64, String),
     Resize(f64, usize, usize),
     Snapshot(usize, usize, String, String),
@@ -30,7 +31,7 @@ pub struct Subscription {
 }
 
 impl Session {
-    pub fn new(cols: usize, rows: usize) -> Self {
+    pub fn new(cols: usize, rows: usize, pid: i32) -> Self {
         let (broadcast_tx, _) = broadcast::channel(1024);
         let now = Instant::now();
 
@@ -40,6 +41,7 @@ impl Session {
             stream_time: 0.0,
             start_time: now,
             last_event_time: now,
+            pid,
         }
     }
 
@@ -81,6 +83,7 @@ impl Session {
             self.elapsed_time(),
             cols,
             rows,
+            self.pid,
             self.vt.dump(),
             self.text_view(),
         );
@@ -107,11 +110,12 @@ impl Session {
 impl Event {
     pub fn to_json(&self) -> serde_json::Value {
         match self {
-            Event::Init(_time, cols, rows, seq, text) => json!({
+            Event::Init(_time, cols, rows, pid, seq, text) => json!({
                 "type": "init",
                 "data": json!({
                     "cols": cols,
                     "rows": rows,
+                    "pid": pid,
                     "seq": seq,
                     "text": text,
                 })
